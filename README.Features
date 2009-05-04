@@ -1,0 +1,521 @@
+$Id: README.Features,v 1.1 2003/10/05 15:21:25 thor Exp $
+#
+# This file lists the Os features of os++ compared to the
+# original Atari800XL Os.
+#
+
+Removed Os features (compared to the XL Os):
+
+- The vertical blank does no longer check for consistency of the Trig3
+flag of GTIA, avoiding several crashes on games that used the Trig3
+shadow as data buffer.
+
+- Dropped the C: handler and replaced it by a dummy. Tapes are not
+supported due to lack of space.
+
+- Dropped tape bootstrap.
+
+- Dropped parallel port support since I've no hardware to check how
+it works, and there's no room for it either.
+
+- Dropped self-test since it there is no room for it. Self-test area
+is now required for the DUP of the built-in FMS.
+
+- Dropped support for 1200XL function keys not available on any other
+model.
+
+- No math pack included since I cannot really rewrite it using the
+same absolute addresses.
+
+New Os Features: 
+
+- FMS built-in. Os++ comes with its own FMS built into ROM that gets
+used if no other fms is found on disk or the START button is held on
+reset. The Dos++ is a Dos 2.0s Dos 2.XL compatible SD/ED dos with a
+command line processor similar to Dos Os/A+.
+
+
+- Bootstrap:
+
+- Optionally installs now the built-in FMS.
+
+- Allows now software (most noticably the FMS) to signal boot-up to a
+cart, forcing re- reading of MemLo.
+
+- Optionally boots off and installs an 850 interface box.
+
+- Will avoid disk bootstrap if START is held at bootstrap time, then
+installing the ROM FMS and booting from there.  FMS bootstrap:
+
+- Loads now CONFIG.SYS,HANDLERS.SYS and AUTORUN.SYS in this
+order. CONFIG.SYS is special in the sense that it can modify FMS
+parameters (see below).  
+
+
+- FMS (compared to Dos 2.XL)
+
+- A couple of bug fixes.
+- Built-in support for SD format.
+- Bootstrap modified (see above)
+- Supports wild-cart resolution XIO.
+
+
+- DUP (compared to Dos 2.XL) 
+
+- The " sign in front of a command runs now resident commands,
+avoiding disk look-up, that take otherwise preceedence.
+
+- Fixed bugs in the COPY command.
+
+- Added CART command to run the cart again.
+
+
+- CIO
+
+- CIO allows now the installation of a Put-One-Byte vector that is
+distinct from the vector provided for HATABS. This is useful for
+handlers that want to perform Burst I/O, for example for the FMS.
+
+
+- DISKINTERF
+
+- The resident disk interface supports now the enhanced density
+format, completing the support of the command set of the 1050.
+
+
+- EDITOR
+
+- No longer entangled with the screen handler, rather loosely bound.
+
+- Can be programmed to support text windows higher than four lines.
+
+- Line insertion/deletion no longer tries to write to ROM area
+erraneously.
+
+
+- SCREEN
+
+- No longer entangled with the editor.
+
+- Supports smooth scrolling in the text window now.
+
+- Cursor handling of S: handler works now correctly in conjunction
+with E:
+
+- "Out of memory" conditions should now be handled more graceful.
+
+- Screen handler is now more careful with Antic DMA settings and
+respects user installed player/missle graphics.
+
+
+- Interrupt handling
+
+- Quicker respond times to Pokey interrupts.
+- Dropped support for parallel port interrupts.
+- VBI doesn't check for Trig3Shadow.
+- VBI support for 1200XL function keys dropped.
+
+- Kernel
+
+- Parallel port handling support routines replaced by dummies.
+- Added call-in to run the DUP directly.
+
+
+- Keyboard
+- Dropped 1200XL function key support.
+- GET from K: handles now the BrkFlag $11 properly.
+
+- Misc
+
+- SetIRQ can now savely install IRQs, not only NMIs. Didn't do that
+before.
+
+- Printer
+- No functional changes.
+
+- SIO
+- Dropped support for parallel port handling.
+- Dropped support for tape.
+
+- Serial transfer start is now initialized over the SerXMTDone
+interrupt that is better patch-able for high-speed transfers than SIO
+directly.
+
+
+Features of the ROM FMS:
+
+- Bootstrap:
+
+The ROM first tries whether there is a bootable disk in the first
+attached disk drive. If so, and if the START key is not held, this
+drive will be booted and the ROM FMS will not get activated.
+
+If a bootable disk is available, but START is held, then the ROM FMS
+is activated, and the disk doesn't get booted. The same happens if the
+inserted disk is not bootable. In that case, the FMS takes over the
+boot process and first tries to load the file CONFIG.SYS from the
+first drive. This is a binary file that could modify some FMS
+parameters. After- wards, the FMS re-initializes itself again. Then,
+the HANDLERS.SYS file, and then AUTORUN.SYS are loaded. The first
+should initialize any disk-based handlers, the second is any kind of
+auto-runable program.
+
+- General
+
+The ROM FMS - called Dos 2.++ - is a file manager that is backwards
+compatible to 2.0S. It can read and write savely to 2.0S disks, and
+Dos 2.0S and Dos 2.5 can read savely 2.++ disks, but you shouldn't try
+to write to enhanced density 2.++ disks. Dos 2.++ is, however, fully
+compatible to the Dos 2.XL/2.XA of the same author. The ED formatted
+disks hold 963 sectors instead of the 707 sectors Dos 2.0S is able to
+held. The remaining extra sectors enhanced density is able to offer is
+as of Dos 2.++ unused, but would have been used for Dos 2.XL to hold
+the FMS binary. This is now in ROM. Future additions might make use
+of it.
+
+- Command set:
+
+The following CIO commands are supported by the FMS at the time
+of writing:
+
+CMD 3 : OPEN
+
+Opens a file on a disk. The following open modes are available:
+
+Aux2 = 0:	Regular file access (as opposed to direct access, see below)
+Aux1 = 4:	Open for reading
+Aux1 = 6:	Open for directory reading, including the disk name.
+Aux1 = 7:	Open for directory reading, not listing the disk name.
+Aux1 = 8:	Open for writing, creates file if it does not exit.
+Aux1 = 9:	Open for appending. Unlike Dos 2.0S, this does not waste
+space in the last sector but is space efficient.
+Aux1 = 12:	Open for update. Allows reading, writing, but no writing
+		past the end of the file.
+Aux1 = 13:	Open for extension. Allows reading and writing, and writing
+		beyond the EOF which then simply enlarges the file.
+
+Aux2 = 128:	Direct access. No files exist in this mode, but the disk is
+rather understood as raw block-oriented device with sectors continuously
+numbered from 1 to 1040 (or 720, depending on the density). This mode exists
+to allow direct access to non-FMS disks (i.e. "boot disks"). Sectors are selected
+by means of the POINT and NOTE commands.
+Aux1 = 4:	Allow reading only.
+Aux1 = 8:	Allow writing only.
+Aux1 = 12:	Allow reading and writing.
+
+Files names: Dos 2.++ specifies the following rules for file names:
+First character must be an uppercase letter, all remaining must be
+uppercase letters or digits. A file name consists of at most eight
+characters, and an optional three character extender that is appended
+after a ".".  Dos 2.++ provides the three wild-cards "?","*" and
+"-". The first matches a single abitrary character, the "*" matches a
+sequence of arbitrary characters, up to the extender behind the dot,
+and the "-" is equivalen to the sequence "*.*" and matches all files.
+
+Additionally, Dos 2.++ supports access mode modifiers that can be
+appended to a file name to change the behaivour of the command. These
+modifiers are appended behind a "/" character, e.g. "D:FILE/A". The
+following modifiers are understood:
+
+/A: Open a file for append mode instead of write mode, i.e.  change
+mode 8 to mode 9. Also changes the plain directory mode to the
+restricted directory mode that suppresses the disk name. All other
+combinations are invalid. This modifier is useful in the FMS command
+line in combination with the COPY command to append one file to
+another.
+
+/D: Changes the open mode from reading to directory reading,
+i.e. changes mode 4 to mode 6. This is, for example, useful in the FMS
+command line to print the directory by means of "COPY D:-/D,P:" which
+
+/O: Does not modify the open mode, but rather disables verify writes
+and uses the faster write without verify disk command. This makes writes
+faster at the price of possibly hiding write errors on bad disks.
+
+/V: Similar to the above, though it enables verify writes.
+
+/N: Only used together with the BINARY LOAD command to disable launching
+the program after having loaded it.
+
+/1../9: If several identically named files exist, access the n-th file of
+them.
+
+CMD 5 : GET RECORD
+Reads a record from disk up to the next EOL or the end of the buffer.
+
+CMD 7 : GET CHARACTERS
+Reads a continuous record of data into memory until the buffer is
+filled. This command tries to "burst", meaning the FMS will bypass CIO
+if possible to speed up the command.
+
+CMD 9 : PUT RECORD
+Write a record to the stream up to the EOL or the end of the buffer.
+
+CMD 11 : PUT CHARACTERS
+Write a continuous stream of characters to disk. This command tries to
+burst, i.e. to bypass the Os CIO routine to speed-up writing.
+
+CMD 12 : CLOSE
+Closes the file and writes the last buffer out, updates the directory.
+
+CMD 13 : STATUS
+Checks the specified filespec whether the disk drive is available, the
+filename is valid and available, and is writeable. Otherwise, an
+apropriate error code is reported.
+
+CMD 32 : RENAME 
+Expects two filespecs that are separated by a comma; it renames the
+first filespec (or several) to the second. This command could result
+in several identical files that can be renamed back by means of the
+modifiers /1 to /9.
+
+CMD 33 : DELETE
+Removes a file spec from disk if it is writeable.
+
+CMD 34 : FIND
+Resolves a wild card filespec and returns a full file name in the
+input buffer. If several files match the wildcard, the value of the
+AUX2 selects the number of the file that is to be resolved. This
+command is used by the command line interpreter to resolve wild-cards.
+
+CMD 35 : LOCK
+Write-protects a file blocking all writing-accesses to it.
+
+CMD 36 : UNLOCK
+Removes the write-protection.
+
+CMD 37 : POINT
+Selects the next read/write position for a file. Unfortunately,
+Dos 2.++ doesn't use simple sequential accessing of files, but rather
+expects an absolute sector/byte offset in Aux3,Aux4 (sector) and
+Aux5 (byte). If an invalid write position is specified here, then the
+disk might get corrupted. Only file pointers obtained by a previous NOTE
+onto the same file should be passed in as arguments here.
+
+CMD 38 : NOTE
+Returns the current file pointer as sector/byte offset.
+
+CMD 39 : INITDISK
+Clears and initializes the disk, erasing all files, but not formatting the
+disk. This is a "quick format" for disks that have been formatted already.
+
+CMD 40 : FIND
+Identical to the command 34. This is the native Dos 2.XL command for FIND,
+though no longer recommended as such.
+
+CMD 41 : BINARY LOAD
+Loads and possibly runs a binary file from disk. AUX2 specifies
+whether the loaded file shall be initialized or run. If set to 192,
+the file is initialized and run, 128 means "init only", 64 just runs,
+but does not initialize the file, and 0 neither runs nor initializes
+the file.
+
+CMD 42 : FORMAT
+This formats the disk to either single or enhanced density. AUX1 is
+used to select between the two. If set to 33, then this is a single
+density format to 707 sectors, for 34, this is a double density
+format.
+
+CMD 43 : FORMAT REGULAR
+Formats a disk to enhanced density.
+
+CMD 254 : FORMAT REGULAR
+Identical to the command 43.
+
+
+Error codes generated by the FMS:
+
+Not listed here are generic SIO errors that are generated by the Os
+kernel, not by the FMS:
+
+IllegalUnit	160		The requested disk unit is not available.
+TooManyFiles	161		Too many files are open at once, 
+				FMS out of buffers
+DiskFull	162		No more free store on the disk.
+FileLinkBroken	164		Fms structure found damaged, possibly because
+				of an invalid POINT.
+FileNameInvalid	165		The file name is invalid.
+InvalidPoint	166		An argument to POINT was out of range.
+FileProtected	167		A write operation to a locked file was attempted.
+DirectoryFull	169		Could not create a file since the directory was
+				filled.
+FileNotFound	170		The specified filespec does not exist.
+NoBinaryFile	175		The specified file is not a binary load file.
+BadLinkage	176		Found a bad sector link to sector #0.
+InvalidMode	177		The specified open mode is invalid.
+
+
+New Os equates:
+
+The FMS uses the following addresses for its configuration:
+
+
+$3f5	:	FmsBootFlag	Specifies the FMS bootstrap modes and various
+other related issues. 
+
+Bit 0 	:	Is set if the next reset should signal the cartridge a coldstart
+since the user memory got invalidated. The FMS sets this bit if the COPY command
+overwrote the user memory.
+Bit 6	:	Is set if the command processor shall be launched on the next
+reset.
+Bit 7	:	Is set if the FMS should be initialized on Reset. Note that the FMS
+no longer requires the DosInit vector.
+
+$3f6	:	DupVector (lo)
+$3f7	:	DupVector (hi) This address is jumped at if bit 6 of the FmsBootFlag
+is set.
+
+The next addresses are only used if the FMS is initialized. They can be modified
+from the CONFIG.SYS file to change the FMS parameters when booting.
+
+$7f0	:	FmsDriveMask	Contains a bitmask that defines which drives
+should be addressable. A one-bit enables the corresponding disk unit, a zero
+disables it. Bit #0 enables/disables drive 1, bit #1 controls drive 2 and so on.
+The default value is 3, meaning a two-disk system is supported. Each supported
+drive requires 128 bytes additional storage.
+
+$7f1	:	FmsBuffers	Number of file buffers the FMS shall allocate.
+This controls how many files can be opened at once. The default value is five,
+allowing to open at most five files at once. Each file buffer requires 128 bytes
+of storage.
+
+
+FMS Memory map:
+
+Addresses $700-$7ff contain FMS state variables that remain undocumented except
+for the two above. Addresses $800-$87f contain a one-sector directory buffer.
+FMS buffers for drives and file buffers are allocated from $880 up. In the
+default configuration, they extend up to $bff, leaving RAM from $c00 and up
+to the user.
+
+
+FMS Command Line Processor
+
+The command line processor is entered by either the BASIC DOS command,
+or is launched if neither a cartridge nor an AUTORUN.SYS file is
+available. The command line processor prompt consists of the currently
+active device specifier; this is by default the first disk drive,
+hence "D1:". All disk operations are relative to this drive, unless an
+explicit device name is specified along with the file name. 
+
+Commands are either internal, or external. Internal commands are built
+into the ROM, external commands reside on the current disk. The first
+thing the command processor does with an entered command is to locate
+it on the current disk. If a file named similar to the command exists,
+and is a binary executable, this command is loaded and gets
+executed. Note, however, that unlike Dos Os A+ and similar command
+processors, Dos 2.++ *does not* append or enforce the extender ".COM"
+for command files. The command must be entered including its extender,
+or must reside on disk without any extender.
+
+If no apropriate external command is found, Dos 2.++ searches its list
+of internal commands, and, if found, executes it. Currently, the
+following internal commands are available; optional arguments are
+printed in brackets:
+
+DIR [filespec]  : Lists the disk directory. If a filespec is given,
+only the files matching the filespec will be listed. DIR is not able
+to list the directory to some other device. For that, use the COPY
+command, see below.
+
+DEL filespec    : Deletes the file or files that match the
+filespec. Note that this command performs its work immediately and
+without asking further question.
+
+REN src,target  : Renames a file or several files to a target filename
+on the same device. If more than one file matches the wildcard, all
+of them are renamed to the same target. You can pick between various
+identically named files by means of the /1 to /9 modifiers, allowing
+you to rename some of them back.
+
+LOCK filespec   : Marks the file or files as write-protected. Any kind
+of write operation, or deletion of the file is then prohibited.
+
+UNLOCK filespec : Removes the write protection again.
+
+CAR		: Runs the cartridge should there be one inserted. If no
+cart is available, the command processor will be entered again.
+
+FORMAT [title]  : Formats the specified disk to enhanced density,
+erasing all its contents. An optional disk name can be specified here
+that will be printed in inverse video when listing the directory
+contents.
+
+CLEAR [title]	: Similar to the above, this command clears the entire
+disk contents and installs an optional disk name. However, the CLEAR
+command only re-initializes an already formatted disk. By that, CLEAR
+is much faster than FORMAT.
+
+RUN [address]	: Runs a machine code program at the specified address.
+If no address has been given, the previously loaded command will be
+run again.
+
+SAVE filespec,from,to,[[,init],run]	: Saves a binary file to disk,
+starting at the given hex address, up to the given address. An optional
+init and run address can be given here as well.
+
+LOAD filespec	: Loads a file from disk, but does not start it. You
+can run this file later by means of the RUN command without additional
+arguments.
+
+COPY from,to	: Copies one or several files from one disk to the same
+or another disk. COPY will first read the file from the source, and will
+then wait for you to swap disks. If the source and the target disk are
+identically, just press RETURN, otherwise swap disks first. COPY will
+then write the target file, and might ask you again to insert the source
+disk if the file is too large to be read in one go, or if more than one
+file is to be copied.
+
+COPY will invalidate the user RAM contents; therefore, a BASIC program
+that has been loaded into RAM will be lost after a COPY command if
+BASIC is re-entered. Similar restrictions arise for other cartridges
+(e.g. Mac65 will loose the current assembly source code). COPY does
+not try to notify you about this fact.
+
+
+Dos 2.++ Hints and Tweaks:
+
+Sometimes an external command has the same name as an internal one. In
+that case, the external command is prefered to the internal one and is
+loaded, bypassing the internal one. If this is undesired, place a
+double quote in front of the command. This will avoid the external
+command lookup.
+
+You might have noted that the DIR command is not able to list the
+directory to anything but to the screen. However, the COPY command can
+perform a similar operation by using the /D access specifier:
+
+COPY -/D,P:
+
+will print out the contents of the directory by copying the contents
+of the directory "file" to the printer device.
+
+The LOAD command can be emulated by using the "no-run" specifier when
+you just want to load, but not to run an external command. Thus, "LOAD
+foobar" and "foobar/N" are equivalent.
+
+
+Parameter parsing to external commands:
+
+Dos 2.++ does, unfortunately, not provide an interface as easy as the
+Dos Os/A+ series, due to ROM space considerations. This means
+specifically that external commands have to parse off arguments
+themselves. The Dos input buffer resides at address $580 and consists
+of an EOL terminated string with arguments separated by spaces. The
+command name itself is the first argument, as is appended to the
+default device name, which is always three characters long.
+
+
+Command line processor memory map:
+
+Since no ROM space was available in the upper ROM area, the command
+line processor had to replace the SelfTest ROM and gets mapped into
+the area $5000 to $5800 whenever it is needed. It is mapped out again
+as soon as an external command is loaded or run, thus avoiding a
+possible memory conflict.
+
+
+The abilities of the command line processor may seem indeed very limited,
+though this is basically due to the limited ROM space the code had to
+fit into. A menu driven "DUP" is available as well that is much easier
+to use, especially for the beginner.

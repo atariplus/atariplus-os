@@ -1,0 +1,27 @@
+			LEGAL
+
+The contents of this file are subject to the THOR Public License
+Version 1.0 (the "License"); you may not use this file except in
+compliance with the License. 
+
+Software distributed under the License is distributed on an "AS IS"
+basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
+the License for the specificlanguage governing rights and limitations
+under the License.
+
+The Original Code is os++ ("Atari 8 Bit Emulator Operating system").
+
+The Initial Developer of the Original Code is Thomas Richter. 
+
+Portions created by  ______________________ are 
+Copyright (C) ______ _______________________. 
+
+All Rights Reserved.
+
+Contributor(s): ______________________________________.
+
+[NOTE: The text of this file applies to all sources in the distribution.
+It was not inlcuded in the sources directly but gets presented here
+instead. The sources are understood as the header files (.i, .h) the
+and source files (.asm,.h) and the makefiles]
+

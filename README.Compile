@@ -1,0 +1,55 @@
+How to compile the os++ ROM sources:
+
+Required tools:
+
+You need a Linux system with the GNU build
+tools installed. Specifically, you need gmake (the
+GNU make tool) and a standard ANSI C compiler. The
+gcc is fine, but any other compiler should do it as
+well. Furthermore, the fileutils are required, especially
+the "dd" tool.
+
+For compiling/assembling the os sources, the ca65 
+assembler and the ld65 linker are required. Both are part
+of the CC65 compiler tools, available at http://www.cc65.org/.
+
+Thanks, Uz!
+
+Unfortunatly, the ca65 has a bug concerning label
+forward-references within "name spaces", resp. "procedures"
+that was detected at a time some code was already written.
+There is currently no real fix for this bug, but a workaround
+is available. To apply this patch, download the 2.9.0 version
+of the cc65 package and go to the directory
+
+$ cd cc65-2.9.0/src/ca65/
+
+There, apply symtab.patch to the symtab.c source file using
+the "patch" command and recompile the assembler with the 
+makefile. The workaround is currently not very "clean" as
+it causes other problems that are, fortunately, not 
+relevant for the os++ sources.
+
+The ca65 bug prevents the assembler to find external
+symbols within a namespace introduced by .proc; the bug is
+known to the author, but a complete fix would require a redesign
+of parts of the assembler. 
+
+--
+
+Compiling/assembling the sources:
+
+- Make sure ca65 has been patched, and the ca65 and ld65 commands
+are in the path. Then, type
+
+$ make osdist
+
+This will generate a binary dump of the Os area 0xc000 to 0xffff
+with the math pack just left blank. With
+
+$ make osdist.dump
+
+a hex dump of this area is generated that is suitable to
+insert it into the osdist.cpp source file of the atari++
+emulator.
+

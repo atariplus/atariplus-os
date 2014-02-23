@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: kernel.i,v 1.12 2008-09-24 13:59:48 thor Exp $		**
+;;; ** $Id: kernel.i,v 1.17 2013-05-04 20:48:38 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 Kernel definitions: The jump vectors of the Os	**
 ;;; **********************************************************************
@@ -30,8 +30,11 @@ ColdStartVector		=	$e477
 MountHandlerVector	=	$e486	;install a new handler
 Init850Vector		=	$e48f	;850 init 
 LaunchDosVector		=	$e492	;DUP entry point
+FmsInitVector           =       $e498   ;FMS init
+LaunchDupVector		=	$e49b
 
+RTSVector		=	$e4c0   ;a lonely RTS, used by several functions
 	
-RomSumLoVector		=	$5680	;in the selftest
-RomSumHiVector		=	$5683
-VectorInitVector	=	$5686
+RomSumLoVector		=	$56b0	;in the selftest
+RomSumHiVector		=	$56b3
+VectorInitVector	=	$56b6

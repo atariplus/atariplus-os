@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: fms.asm,v 1.49 2008-12-29 23:37:23 thor Exp $		**
+;;; ** $Id: fms.asm,v 1.80 2014/01/19 11:31:43 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 Implementation of the D: handler		**
 ;;; **********************************************************************
@@ -15,6 +15,7 @@
 	.include "kernel.i"
 	.include "editor.i"	; for the bitmasks
 	.include "reset.i"
+	.include "rts.i"
 	.include "pia.i"
 	.include "nmi.i"
 	.include "misc.i"
@@ -51,26 +52,45 @@ FmsTable:
 ;;; *** Called by the Os to initialize this beast
 	.global FmsInit
 .proc	FmsInit
+	ldx #'D'
+	lda #>FmsTable
+	ldy #<FmsTable
+	jsr MountHandlerVector	; install the D handler now into HATABS
+	bcc isinit
+	bmi nodos		; no room, do nothing
+	bit WarmStartFlag
+	bmi iswarm		; if warm starting and already installed, ignore
+	sta HaTabs+1,x
+	tya
+	sta HaTabs,x		; force replace
+isinit:
 	
 	lda WarmStartFlag	; are we coldstarting?
 	bne iswarm		; if warmstarting, then no need to initialize buffers
 	lda #3			; reserve for two drives
 	sta FmsDriveMask
 	sta FmsBuffers		; and reserve buffers for three open files
-
-	lda #<LaunchDup		; where we get run to launch the DUP
-	sta DupVector
-	lda #>LaunchDup
-	sta DupVector+1
+	
+	lda #<FmsEnd
+	sta DiskBufferBase
+	lda #>FmsEnd
+	sta DiskBufferBase+1	; set the base address for all buffers
+	
 	lda #'P'		; default is write without verify
 	sta WriteCommand
+
+	lda #<LaunchDosVector	; where we get called on the DosInit vector
+	sta DosVector
+	lda #>LaunchDosVector
+	sta DosVector+1
+
+	lda #<DosInitRun
+	sta DosInit
+	lda #>DosInitRun
+	sta DosInit+1
 iswarm:
 	jsr SetupBuffers
 
-	ldx #'D'
-	lda #>FmsTable
-	ldy #<FmsTable
-	jsr MountHandlerVector	; install the D handler now into HATABS
 	;; now the file based bootstrap
 	lda WarmStartFlag	; are we warmstarting here?
 	bne warmstart
@@ -90,32 +110,20 @@ iswarm:
 	lda #>Autorun
 	ldy #<Autorun
 	jsr LoadFile
-warmstart:		
+warmstart:
+nodos:	
 	rts
-;;; Binary load the indicated file
-LoadFile:
-	ldx #$10		; use traditionally IOCB#1 for this
-	jsr InitCIOAddress	; Insert this as command
-	lda #$c0		; run and init
-	sta IOCBAux1,x		; init and run the file
-	lda #CmdBload		; binary load
-	jmp DispatchCIOCommand	; and launch the command
-;;; File names
-Config:		.byte "D:CONFIG.SYS",$9b	; shall contain drive/fms settings or patches
-Handlers:	.byte "D:HANDLERS.SYS",$9b	; shall contain additional handlers
-Autorun:	.byte "D:AUTORUN.SYS",$9b	; the traditional bootstrap
 .endproc
 ;;; *** SetupBuffers
 ;;; *** Initialize buffers and buffer pointers
 .proc	SetupBuffers
-	lda #<FmsEnd
+	lda DiskBufferBase
 	sta FmsPtr
-	ldy #>FmsEnd
-	sty FmsPtr+1
+	lda DiskBufferBase+1
+	sta FmsPtr+1		; base address from where on we allocate
+	
 	ldx FmsDriveMask	; get #of disks we want to support
 	stx FmsTmp
-	sta DiskBufferBase
-	sty DiskBufferBase+1	; will be the base of all buffers
 	ldx #7
 initdbuflp:			; check for all flags
 	lda #0
@@ -146,11 +154,17 @@ nobuffer:
 	inx
 	cpx #8			; up to eight buffers
 	bcc initbuffers
-	lda FmsPtr
-	sta MemLo		; reset MemLo now appropriately
-	lda FmsPtr+1
-	sta MemLo+1
-	
+	ldx FmsPtr+1
+	ldy FmsPtr
+	lda FmsBootFlag
+	and #$10		; magic buffer relocation flag
+	beq regular
+	ldx #>FmsEnd
+	ldy #<FmsEnd
+regular:	
+	stx MemLo+1		; reset MemLo now appropriately
+	sty MemLo
+
 	ldy #0
 	lda #$ff		; set buffers as free
 initfcb:
@@ -169,12 +183,6 @@ AdvanceBuffer:
 nocarry:
 	rts
 .endproc	
-;;; *** LaunchDup
-;;; *** This calls the DUP from the selftest. 
-.proc	LaunchDup
-	jsr MapSelfTest
-	jmp RunDup		; is within the selftest
-.endproc
 ;;; *** CheckDevice
 ;;; *** Check whether the indicated device is available
 .proc	CheckDevice
@@ -192,15 +200,10 @@ diskavailable:
 ;;; *** Mark the file in the directory busy and
 ;;; *** ditto the VTOC
 .proc	MarkFileBusy
-	jsr MarkVTOCBusy	; mark the VTOC as busy
-	;; runs into the following
-.endproc
-;;; *** MarkOnlyFileBusy
-;;; *** same as above, but VTOC is assumed to be busy already
-.proc	MarkOnlyFileBusy
-	jsr LoadDirOffset
+	jsr ReadVTOC
+	jsr LoadThisDirEntry
 	lda #$43		; set bit 0 to indicate that the file is busy
-	sta (FileBuffer),y
+	sta (FmsPtr),y
 	bne WriteDir		; jumps always, writes the directory back
 .endproc
 ;;; *** ReadDir
@@ -230,27 +233,51 @@ diskavailable:
 	tay
 	bne AccessAdministrationSector	; jumps always
 .endproc
+;;; *** MarkVTOCClear
+;;; *** Clear the VTOC flag
+.proc	MarkVTOCClear
+	lda #$0
+	Skip2
+	;; runs into the following
+.endproc
+;;; *** MarkVTOCBusy
+;;; *** Set the busy flag in the VTOC
+.proc	MarkVTOCBusy
+	lda #$ff
+	ldy #$05
+	sta (DiskBuffer),y
+	rts
+.endproc
 ;;; *** ReadVTOC
 ;;; *** Read the VTOC if it is not yet read already
 .proc	ReadVTOC
 	ldy #$05		; offset of the read/write status byte
-	clc			; direction is read
 	lda (DiskBuffer),y	; check whether we are set
-	beq AccessVTOC		; if equal, then the VTOC must be reloaded
-	rts			; is here already
+	bne ReadVTOC-1		; if busy, do not reload: Jump to the RTS
+	clc
+	jsr AccessVTOC
+	ldy #$05		; offset of the read/write status byte
+	lda (DiskBuffer),y	; check whether we are set: If so, the VTOC is damaged
+	bne errordisk
+	tay
+	lda (DiskBuffer),y
+	cmp #2			; must be DOS 2
+	beq ReadVTOC-1		; done, jump to the RTS
+errordisk:
+	jsr MarkVTOCClear	; ensure to reload the next time
+errordisknow:
+	Error NotADosDisk
 .endproc
-;;; *** MarkVTOCBusy
-;;; *** Mark the VTOC as busy
-.proc	MarkVTOCBusy
+;;; *** UpdateVTOC
+;;; *** If the VTOC is busy, write it out to disk now.
+.proc	UpdateVTOC
 	jsr ReadVTOC		; read it
 	;; runs into the following
 .endproc
 ;;; *** WriteVTOC
 ;;; *** Write the VTOC out to the disk
 .proc	WriteVTOC
-	lda #$00
-	ldy #$05
-	sta (DiskBuffer),y	; clear the VTOC valid flag:	Is valid
+	jsr MarkVTOCClear	; clear the VTOC valid flag:	Is valid
 	sec
 	;; runs into the following
 .endproc
@@ -296,19 +323,39 @@ diskavailable:
 diskerror:
 	jmp YError		; deliver the error
 .endproc
-;;; *** ReadFileSector
-;;; *** Read a sector into the file buffer
-;;; *** X contains the offset of the FCB
-.proc	ReadFileSector
-	clc
-	Skip1
+;;; *** LinkNextSector
+;;; *** insert a link to the next sector into the
+;;; *** old sector, and write the old sector out
+.proc	LinkNextSector
+	lda SpecialFlag,x	; are we boot or file?
+	bmi nolinkage		; do not perform a link if we are direct access
+	
+	tay			; start FMS data in the file area (also in the SpecialFlag)
+	lda NextSector+1,x	; get the next sector hi
+	ora FileCode,x		; or the directory index in
+	sta (FileBuffer),y
+	iny
+	lda NextSector,x
+	sta (FileBuffer),y
+	iny
+	lda BytePosition,x	; the byte pointer here
+	sta (FileBuffer),y	; insert the byte count here as well
+nolinkage:
 	;; runs into the following
 .endproc
 ;;; *** WriteFileSector
 ;;; *** Write a sector from the file buffer
 ;;; *** X contains the offset of the FCB
 .proc	WriteFileSector
-	sec			; gets skipped from above
+	sec
+	Skip1
+	;; runs into the following, and skips the clc
+.endproc
+;;; *** ReadFileSector
+;;; *** Read a sector into the file buffer
+;;; *** X contains the offset of the FCB
+.proc	ReadFileSector
+	clc			; is skipped by the above
 	jsr LoadFileBuffer	; into the file buffer
 	lda FileSector+1,x	; get high
 	pha
@@ -328,26 +375,6 @@ linkerror:
 	lda FileBuffer+1
 	sta SIOBufferHi		; set the file buffer
 	rts
-.endproc
-;;; *** LinkNextSector
-;;; *** insert a link to the next sector into the
-;;; *** old sector, and write the old sector out
-.proc	LinkNextSector
-	lda SpecialFlag,x	; are we boot or file?
-	bmi nolinkage		; do not perform a link if we are direct access
-	
-	tay			; start FMS data in the file area (also in the SpecialFlag)
-	lda NextSector+1,x	; get the next sector hi
-	ora FileCode,x		; or the directory index in
-	sta (FileBuffer),y
-	iny
-	lda NextSector,x
-	sta (FileBuffer),y
-	iny
-	lda BytePosition,x	; the byte pointer here
-	sta (FileBuffer),y	; insert the byte count here as well
-nolinkage:
-	jmp WriteFileSector	; write this out
 .endproc	
 ;;; *** AdvanceSector
 ;;; *** advance the sector for reading/writing
@@ -384,11 +411,31 @@ nocarry2:
 	lda #$00
 	sta NextSector,x	; clear out the next sector, still to be found
 	sta NextSector+1,x	; ditto (on EOF, LinkNextSector will write a NULL continuation, which is desired)
-	sta BytePosition,x	; reaset the byte pointer
+	sta BytePosition,x	; reset the byte pointer
 	lda SpecialFlag,x	; byte max in the sector
 	sta ByteMax,x
 	clc			; not an EOF
 	rts
+.endproc
+;;; *** InitFilePointer
+;;; *** Initialize the file pointer from the
+;;; *** directory to start following the linkage
+.proc	InitFilePointer
+	jsr InitializeFCBForRead	; initialize the FCB for reading
+	jsr LoadThisDirEntry
+	ldy #1
+	lda (FmsPtr),y			; initialize the file length
+	sta FileLength,x
+	iny
+	lda (FmsPtr),y
+	sta FileLength+1,x
+	iny
+	lda (FmsPtr),y			; get the first sector
+	sta NextSector,x
+	iny
+	lda (FmsPtr),y
+	sta NextSector+1,x
+	; get now the first file sector into the buffer: runs into the following.
 .endproc
 ;;; *** AdvanceReading
 ;;; *** Move a file forward one sector for reading by
@@ -417,8 +464,7 @@ fileaccess:
 	and #$fc
 	cmp FileCode,x		; does this fit?
 	bne pointerror		; if not, then linkage is broken
-	lda (FileBuffer),y	; hi-byte linkage
-	and #$03
+	eor (FileBuffer),y	; hi-byte linkage
 	sta NextSector+1,x
 	iny
 	lda (FileBuffer),y
@@ -481,7 +527,8 @@ insector:
 	ora (DiskBuffer),y	; or this bit in
 	sta (DiskBuffer),y
 	ldx ZIOCB		; return IOCB
-	ldy #3			; sector count
+	jsr MarkVTOCBusy	; is now modified
+	ldy #$03
 	sec			; plus one
 	jsr Increment
 	iny
@@ -497,7 +544,6 @@ ignore:
 ;;; *** NextSector if found
 .proc	AllocateSector
 	lda #$00
-	ldx ZIOCB
 	sta NextSector,x
 	sta NextSector+1,x	; up to now:	No next sector (required on failure)
 	ldx #$ff		; VTOC sector counter
@@ -538,11 +584,9 @@ shiftloop:
 	rol NextSector+1,x
 	dey
 	bne shiftloop
-	ldy #5			; VTOC allocation byte
-	lda #$ff
-	sta (DiskBuffer),y	; mark the VTOC as busy
-	ldy #3			; free sectors entry
-	jsr Decrement		; carry is clear due to ror a above
+	jsr MarkVTOCBusy	; is now modified
+	ldy #$03
+	jsr Decrement		; carry is clear due to rol above
 	iny
 Decrement:
 	lda (DiskBuffer),y
@@ -560,7 +604,7 @@ diskful:
 	tsx
 	inx
 	inx
-	stx FmsStack		; keep the stack ponter
+	stx FmsStack		; keep the stack pointer
 	ldy ZUnit		; get the unit number
 	cpy #9
 	bcs wrongunit
@@ -650,7 +694,7 @@ findcolon:
 ;;; *** must have the IOCB in X.
 .proc	ExtractFileName
 	lda #$ff
-	sta FileNumber,x	; reset the file number
+	sta FileCounter
 	jsr FindColon
 	;; runs into the following
 .endproc
@@ -731,10 +775,8 @@ endname:
 	beq setdirmode
 noread:
 	jsr CheckDigits		; a digit (or end the game)	
-	ldx ZIOCB		; get IOCB again
 	and #$0f		; mask out
-	beq errorname		; signal an error
-	sta FileNumber,x
+	sta FileCounter
 	bne parseextra		; get more modifiers
 errorname:
 	Error FileNameInvalid
@@ -805,13 +847,15 @@ secend:
 	sta FmsPtr+1
 	ldy #1
 	lda (FmsPtr),y
-	;; runs into the following
-.endproc
-;;; *** AError:	return the error in the A register
-.proc	AError
 	tay			; deliver the error
 	;; runs into the following
+	Skip2
 .endproc
+;;; *** ExitFine
+;;; *** Exit the FMS with an "OK" result code
+.proc	ExitFine
+	ldy #$01
+.endproc	
 ;;; *** YError:	return the error in the Y register
 .proc	YError	
 	ldx FmsStack
@@ -826,53 +870,51 @@ isopen:
 	ldy FmsTmp		; set the status flag (mainly for the bload, CIO doesn't require it)
 	rts
 .endproc
-;;; *** ExitFine
-;;; *** Exit the FMS with an "OK" result code
-.proc	ExitFine
-	lda #$01
-	bne AError		; load with fine result code
-.endproc
 ;;; *** Convert the file code to a directory
-;;; *** sector offset in A
-.proc	LoadDirOffset
-	ldx ZIOCB
+;;; *** pointer in FmsPtr, return with Y = 0
+.proc	LoadThisDirEntry
 	lda FileCode,x
 	asl a
 	asl a
 	and #$7f
-	tay
-	rts
-.endproc
-;;; ***
-;;; *** Load the FmsPtr with the current directory entry
-;;; ***
-.proc	LoadThisDirEntry
-	jsr LoadDirOffset
 	clc
 	adc FileBuffer
 	sta FmsPtr
-	lda FileBuffer+1
-	adc #$00
+	lda #$0
+	tay
+	adc FileBuffer+1
 	sta FmsPtr+1
 	rts
 .endproc
+;;; *** Replace a filename by a wildcard in the
+;;; *** current directory slot by replacing non-wild characters
+.proc	ChangeFileName
+	clc		   		; runs into the following
+.endproc
 ;;; *** Insert a wildcard filename into the
 ;;; *** current directory slot by replacing non-wild characters
+;;; *** C=1: Replace wildcards with blanks. Otherwise, keep old entry.
 .proc	InsertFileName
+	php
 	jsr LoadThisDirEntry
-	ldx #0
-	ldy #5
+	ldx #10
+	ldy #15
+	plp
 copyloop:
 	lda FileNameBuffer,x
-	cmp #'?'			; use the old entry
-	beq keep
+	eor #'?'			; use the old entry
+	bne set
+	bcc keep
+	lda #' '^'?'
+set:
+	eor #'?'
 	sta (FmsPtr),y			; insert into directory
 keep:	
-	inx				; until all done
-	iny	
-	cpx #11
-	bcc copyloop
-	ldy #5
+	dey				; until all done
+	dex	
+	bpl copyloop
+	iny
+	ldx ZIOCB			; restore X
 	lda (FmsPtr),y			; check whether at least the first character is valid
 	cmp #' '			; if not, signal an error
 	bne fine
@@ -882,23 +924,21 @@ fine:
 .endproc
 ;;; *** LocateFile
 ;;; *** Locate a file given its pattern.
-;;; *** FIXME:	Since the file pattern is an FMS global,
-;;; *** this is not reentrant and opening a directory for reading
-;;; *** works only on one stream at once.
-;;; *** returns with C set if the file was not found, otherwise with
+;;; *** Returns with C set if the file was not found, otherwise with
 ;;; *** carry cleared.
 ;;; *** Expects the IOCB number in X
 .proc	LocateFile
 	lda #$01
-	sta FreeDirCode		; no free slot available
+	sta FreeDirCode				; no free slot available
 	lda #$00
-	beq *+12		; loadnextsector
-.endproc
+	beq loadnextsector	; loadnextsector
 ;;; *** LocateNextFile
 ;;; *** get the next file in the directory
 ;;; *** returns with C set if the file was not found, otherwise with
 ;;; *** carry cleared.
-.proc	LocateNextFile
+LocateNextFile:	
+	bit FileCounter		; Looking for a specific file, and this is the next attempt?
+	bpl notfound		; if so, no next file
 nextfile:
 	ldx ZIOCB
 	lda FileCode,x
@@ -912,19 +952,15 @@ loadnextsector:
 	jsr ReadDir
 notnextsector:
 	jsr LoadThisDirEntry
-	ldy #0
 	lda (FmsPtr),y		; check the dir entry
 	beq freeentry		; end of directory, and a free entry
 	bmi freeentry		; a deleted file
 	cmp #$63		; volumne name?
 	bne novolumename
 	;; here: found a volume name. What do to about it?
-	lda ZAux1		; check whether we are open for directory reading with headline
-	cmp #6
-	bne nextfile		; if not, skip it
-	lda FileNumber,x	; are we looking for a specific file?
+	bit FileCounter		; specific file?
 	bpl nextfile		; if so, skip too
-	bmi foundpattern	; check whether the pattern matches
+	bvc foundpattern	; check whether headlines match
 novolumename:
 	and #$43		; A DOS 2.5 file?
 	cmp #$03
@@ -932,27 +968,23 @@ novolumename:
 	cmp #$42		; or a plain file?
 	bne nextfile		; advance if so
 cmppattern:			; here:	 compare the found directory entry with the pattern
-	ldx #0
-	ldy #5
+	ldy #15
 cmploop:
-	lda FileNameBuffer,x	; get the filename
+	lda FileNameBuffer-5,y	; get the filename
 	cmp #'?'		; wildcard?
 	beq skip
 	cmp (FmsPtr),y		; does the filename match?
 	bne nextfile		; if not, skip
 skip:
-	inx
-	iny
-	cpx #11			; all entries
-	bcc cmploop
+	dey
+	cpy #5
+	bcs cmploop		; all characters
 foundpattern:
 	;; here: found a match
-	ldx ZIOCB
 	clc			; signal a "file found"
-	lda FileNumber,x
+	bit FileCounter
 	bmi foundfile		; if unnumbered, found the file
-	dec FileNumber,x	; otherwise, count down
-jnext:				; trampoline jump target
+	dec FileCounter		; otherwise, count down
 	bne nextfile
 	beq foundfile
 	;; here: found end of directory
@@ -975,14 +1007,12 @@ exit:
 ;;; *** Test whether a file is locked or not
 ;;; *** If the file is locked, return an error
 .proc	TestForProtection
-	jsr LoadDirOffset
-	lda (FileBuffer),y	; get the status
+	jsr LoadThisDirEntry
+	lda (FmsPtr),y		; get the status
 	and #$60		; protection bit set? Dos 2.5 bit cleared?
 	cmp #$40
-	beq isfree
+	beq TestForProtection-1	;to the RTS on top
 	Error FileProtected
-isfree:
-	rts
 .endproc
 ;;; *** DiskGet
 ;;; *** Read a byte from disk
@@ -994,6 +1024,18 @@ isfree:
 	beq regular
 	;; here reading from the directory. Restore the context
 	jsr LoadThisDirEntry
+	;; Restore from the directory
+	ldx #0
+loadloop:
+	sta FileNameBuffer-1,x
+	ldy FileTmpOffset,x
+	lda (FileBuffer),y
+	inx
+	cpx #8+3+1
+	bcc loadloop
+	sta FileCounter
+	ldx ZIOCB
+
 	ldy BytePosition,x
 	lda NextSector+1,x
 	pha
@@ -1024,7 +1066,7 @@ partial:
 	cmp ByteMax,x		; end of the sector reached?
 	bcc fine
 	lda NextSector,x
-	ora NextSector,x	; end of file nearby?
+	ora NextSector+1,x	; end of file nearby?
 	bne fine
 	Error NearEOF		; EOF is near
 fine:
@@ -1040,7 +1082,6 @@ fine:
 	tay			; keep value	
 	lda IOCBUnit,x		; get unit
 	sta ZUnit		; keep it
-	;stx ZIOCB		; Store IOCB # (done by AllocateFCB)
 	lda #8			; set a generic write command
 	sta ZCmd		; to avoid bursting	
 	and FileAux1,x		; writing allowed?
@@ -1172,26 +1213,6 @@ nocarry1:
 exit:
 	rts
 .endproc
-;;; *** InitFilePointer
-;;; *** Initialize the file pointer from the
-;;; *** directory to start following the linkage
-.proc	InitFilePointer
-	jsr InitializeFCBForRead	; initialize the FCB for reading
-	jsr LoadThisDirEntry
-	ldy #1
-	lda (FmsPtr),y			; initialize the file length
-	sta FileLength,x
-	iny
-	lda (FmsPtr),y
-	sta FileLength+1,x
-	iny
-	lda (FmsPtr),y			; get the first sector
-	sta NextSector,x
-	iny
-	lda (FmsPtr),y
-	sta NextSector+1,x
-	jmp AdvanceReading		; get now the first file sector into the buffer
-.endproc
 ;;; *** InitializeFCBForRead initialize the file control block
 ;;; *** such that we read (and do not write) the links
 .proc	InitializeFCBForRead
@@ -1216,7 +1237,7 @@ exit:
 .proc	FmsOpen
 	jsr AllocateFCB
 	jsr CheckDevice		; disk present?
-	jsr ExtractFileName	; get the filename
+	jsr ExtractFileName	; get the filename	
 	;; set the put one byte vector for direct handler access
 	lda #<(POBPut-1)
 	sta ZPut
@@ -1224,15 +1245,17 @@ exit:
 	sta ZPut+1
 	lda #125		; bytes per sector (regular case)
 	sta SpecialFlag,x
+	ldy ZAux1
+	tya
+	sta FileAux1,x		; keep the mode	
 	lda ZAux2		; boot access?
 	and #$80
 	beq regular
 	sta SpecialFlag,x	; set the special flag = full sector length (A is 0x80 now)
-	lda ZAux1		; check mode again
-	sta FileAux1,x		; keep the mode
+	tya			; check mode again
 	and #3			; valid?
-	bne ErrorMode	
-	lda ZAux1
+	bne ErrorMode
+	tya
 	and #8			; a write mode?
 	beq reading		; read access?
 	lda #$80		; tell the bursting that we need to recreate links (which are not present... (-;)
@@ -1244,12 +1267,18 @@ ErrorMode:
 	Error InvalidMode
 	;; in the following:	regular device access
 regular:
+	cpy #6
+	bne nodir
+	lda FileCounter
+	and #$bf		; enable headlines by clearing bit 6
+	sta FileCounter
+nodir:
 	jsr LocateFile		; try to find the pattern
 	lda ZAux1
-	sta FileAux1,x		; keep the mode
 	bcs notfound		; check what we do if it is not found
 ignore:
-	php			; keep flags:	C set for not found, C cleared for found (OpenDirectory requires this)
+	php			; keep flags:	C set for not found, C cleared for found
+	;; 			(OpenDirectory requires this)
 	sec
 	sbc #4
 	bcc ErrorMode
@@ -1262,13 +1291,13 @@ ignore:
 	lda OpenVectorLo,y
 	pha
 	rts			; call it
-notfound:			; handling if we need to open a file that is not there
-	cmp #8			; only open for write and directory allows this
-	beq CreateFile		; create it
-	cmp #6
-	beq ignore		; and set carry
+notfound:			; handling if we need to open a file that is not there (C=1)
+	cmp #6			; C=1 remains
+	beq ignore     		; open for directory
 	cmp #7
-	beq ignore		; and set carry
+	beq ignore     		; open for directory w/o headline
+	cmp #8
+	beq CreateFile		; create it
 	Error FileNotFound	; otherwise, an error
 ;;; table containing various open modes (no self modifying code possible here)
 ;;; starts at mode #4
@@ -1281,12 +1310,12 @@ OpenVectorHi:	.byte >(OpenForRead-1),>(ErrorMode-1),>(OpenDirectory-1),>(OpenDir
 ;;; *** Open a file for reading/writing/appending
 OpenForUpdateAppend:
 	jsr TestForProtection	; is the file locked? If so, fail.
-	jsr MarkFileBusy	; make the file busy
+	jsr MarkFileBusy	; make the file busy and read VTOC
 OpenForUpdate:			; ditto, but less restrictive
 	jsr TestForProtection	; no need to make the file busy
 OpenForRead:
-	jsr InitFilePointer	
-	ldy #1			; do not use ExitFine as it would dispose the buffer
+	jsr InitFilePointer
+	ldy #1
 	rts
 OpenForAppend:			; open for appending
 	jsr TestForProtection	; may we write into it?
@@ -1296,29 +1325,21 @@ OpenForAppend:			; open for appending
 windloop:
 	jsr AdvanceReading
 	bcc windloop		; until EOF
-	jsr ExtendWriteEOF	; extend the file behind EOF	
+	jsr ExtendWriteEOF	; extend the file behind EOF
 	ldy #1			; do not use ExitFine as it would dispose the buffer
 	rts
 CreateFile:			; create a new entry
 	lda FreeDirCode		; found a free directory slot?
-	ror a
-	bcs dirfull
-	rol a
 	sta FileCode,x		; allocate the directory here
+	lsr a
+	bcs dirfull
 	jsr ReadDir		; and read it
-	jsr MarkVTOCBusy	; we need to allocate sectors now
-	jsr LoadThisDirEntry
-	ldy #5			; clear the directory slot now
-	lda #' '
-clearslot:	
-	sta (FmsPtr),y
-	iny
-	cpy #16
-	bcc clearslot
+	jsr ReadVTOC		; we need to allocate sectors now
+	sec			; overwrite
 	jsr InsertFileName	; copy it in
 	bne contwrite		; jumps always
 OpenForWrite:			; open a file for writing
-	jsr InsertFileName	; copy it in:	Must do this first as it checks the pattern for validity
+	jsr ChangeFileName	; copy it in:	Must do this first as it checks the pattern for validity
 	jsr DeleteFile		; delete the slot
 contwrite:			; from above:	file writing
 	jsr AllocateSector	; for the first sector of the file
@@ -1329,7 +1350,7 @@ contwrite:			; from above:	file writing
 	lda NextSector+1,x	; insert the first file sector
 	iny
 	sta (FmsPtr),y
-	jsr MarkOnlyFileBusy	; write it back as busy file
+	jsr MarkFileBusy	; write it back as busy file
 	lda #$80		; mark access mode as allocating
 	jsr InitializeFCB	; initialize remaining data
 	jsr EnlargeFile		; bump size, switch to next sector
@@ -1343,19 +1364,17 @@ dirfull:
 ;;; *** Remove a file and release all its sectors
 .proc	DeleteFile
 	jsr TestForProtection	; are we protected?
-	jsr MarkVTOCBusy	; need to access it now
-	jsr LoadDirOffset	; get the offset
+	jsr ReadVTOC		; need to access it now
+	jsr LoadThisDirEntry	; get the offset
 	lda #$80
-	sta (FileBuffer),y	; release this slot
+	sta (FmsPtr),y		; release this slot
 	jsr WriteDir		; Put the directory back
 	jsr InitFilePointer	; get the first entry
 eraseloop:
 	jsr ReleaseSector
 	jsr AdvanceReading	; get the next one
 	bcc eraseloop		; until EOF
-	ldy #5
-	lda #$ff
-	sta (DiskBuffer),y	; set the VTOC as busy
+	jsr WriteVTOC		; make sure VTOC is out before errors happen
 	jmp ReadDir		; re-read the directory buffer
 .endproc
 ;;; *** FmsClose
@@ -1382,18 +1401,18 @@ completelinks:
 cleanbuffer:
 	;; now check whether we need to update the directory entry as well
 	lda FileAux1,x
-	cmp #12			; udpate did not touch the directory entry
+	cmp #12			; udpate did not touch the directory entry nor the VTOC
 	beq exit
 	jsr ReadDir		; read directory back
-	jsr LoadDirOffset	; get the offset back
+	jsr LoadThisDirEntry	; get the offset back
 	lda #$42		; change the state back
-	sta (FileBuffer),y
+	sta (FmsPtr),y
 	iny
 	lda FileLength,x	; place the file length back
-	sta (FileBuffer),y
+	sta (FmsPtr),y
 	iny
 	lda FileLength+1,x
-	sta (FileBuffer),y	; insert back into the directory
+	sta (FmsPtr),y		; insert back into the directory
 	jsr WriteDir		; place directory back
 	jsr WriteVTOC		; write VTOC out
 exit:	
@@ -1407,6 +1426,11 @@ exitim:				; no stack management here
 ;;; *** check the status flags
 	.global FmsStatus
 .proc	FmsStatus
+	lda IOCBIndex,x
+	bmi closed
+	ldy IOCBStatus,x
+	jmp YError		; just return with the latest error
+closed:	
 	jsr AllocateFCB
 	jsr CheckDevice
 	jsr ExtractFileName	; check whether the file is fine
@@ -1416,6 +1440,12 @@ exitim:				; no stack management here
 	jmp ExitFine
 notfound:
 	Error FileNotFound
+.endproc
+;;; *** DirWaitNextEOL
+;;; *** Prepare to read the next byte from the
+;;; *** directory buffer, return an EOL
+.proc	DirWaitNextEOL
+	lda #$9b		;the EOL
 .endproc
 ;;; *** DirWaitNext
 ;;; *** Prepare to read the next byte from the
@@ -1429,8 +1459,23 @@ notfound:
 	sta NextSector,x
 	pla
 	sta NextSector+1,x
-	lda ZIOByte
+	;; store temporaries in the file buffer
+	ldx #8+3+1-1
+	lda FileCounter
+storeloop:
+	ldy FileTmpOffset,x
+	sta (FileBuffer),y
+	lda FileNameBuffer-1,x
+	dex
+	bpl storeloop
+	
 	ldy #1			; do not use ExitFine as it would dispose the buffer
+	lda ZIOByte
+	bne exit
+	lda #$9b		; 0 is transposed to EOF plus warning
+	iny
+	iny			; set Y to the EOF warning
+exit:	
 	rts
 .endproc
 ;;; *** OpenDirectory
@@ -1438,10 +1483,12 @@ notfound:
 ;;; *** Must get called with carry set for not found, 
 ;;; ***	and carry cleared for object found
 .proc	OpenDirectory
+	php
+	jsr ReadVTOC
+	plp
 	bcs eof			; if here, then the directory is empty
 directoryloop:
-	lda #$9b
-	jsr DirWaitNext
+	jsr DirWaitNextEOL
 	ldy #$0
 	lda #' '		; = $20 (the protected bit)
 	and (FmsPtr),y		; check whether the file is protected
@@ -1473,30 +1520,28 @@ cphdline:
 	tax
 	dey
 	lda (FmsPtr),y		; get length, lo-byte
-	tay
 	jsr Modulo100		; 100 digit
 	jsr DirWaitNext
+	tya			; restore low
 	jsr Modulo10Next	; 10th digit
 	jsr DirWaitNext
 	tya
 	ora #'0'
 	jsr DirWaitNext		; 1th digit
 donext:
-	jsr LocateNextFile	; advance to the next file in the scan
+	jsr LocateFile::LocateNextFile	; advance to the next file in the scan
 	bcc directoryloop
 	;; here: end of directory found
 eof:	
-	lda #$9b
-	jsr DirWaitNext
-	jsr ReadVTOC		; get the VTOC for the free sectors
+	jsr DirWaitNextEOL	; VTOC is already loaded
 	ldy #4
 	lda (DiskBuffer),y	; get hi
 	tax
 	dey
 	lda (DiskBuffer),y	; get low
-	tay
 	jsr Modulo100		; 100 digit
 	jsr DirWaitNext
+	tya
 	jsr Modulo10Next	; 10th digit
 	jsr DirWaitNext
 	tya
@@ -1507,42 +1552,39 @@ freetext:
 	;; deliver "FREE sectors"
 	iny
 	lda FreeTxt-1,y
-	bpl freetext
-	jsr DirWaitNext
+	bne freetext
+	jsr DirWaitNext		; Zero delivers an EOL and the EOF warning code
 	Error EndOfFile
 FreeTxt:
-	.byte " FREE SECTORS",$9b
+	.byte " FREE SECTORS",0
 FreeTxtLen	=	*-FreeTxt
 .endproc
 ;;; *** Modulo10Next
 ;;; *** Continue the computation with the tenth-digit
 .proc	Modulo10Next
 	ldx #0			; hi-byte is zero for 100th remainder
-	lda #10
+	ldy #10
 	Skip2
 .endproc
 ;;; *** Modulo100
-;;; *** Compute the modulus of the number (X,Y) by A
+;;; *** Compute the modulus of the number (X,A) by Y
 ;;; *** return the divisor digit in A, return the
 ;;; *** low-byte of the remainder in Y.
 .proc	Modulo100
-	lda #100
-	sta FmsTmp		; keep divident
-	txa
-	ldx #$ff		; counter
+	ldy #100
+	sty FmsTmp		; keep divident
+	ldy #$ff		; counter
 subloop:
-	sty FmsPtr		; keep lo
-	sta FmsPtr+1		; keep hi
-	inx
+	iny
 	sec
-	tya			; get low
 	sbc FmsTmp		; subtract modulus
-	tay			; keep low
-	lda FmsPtr+1		; get hi
-	sbc #0			; and carry over
-	bcs subloop		; until all done
-	txa			; the result
-	ldy FmsPtr
+	bcs subloop
+	dex
+	bpl subloop		; overflow to high
+	adc FmsTmp		; subtracted one too many
+	sty FmsTmp		; keep result
+	tay			; low->Y
+	lda FmsTmp		; the result
 	ora #'0'
 	rts
 .endproc
@@ -1569,29 +1611,49 @@ standard:
 	pha			; prepare for the jump:	target address
 		
 	lda AgendaByte,y	; check what we had to do here
-	sta FmsTmp
+	sta DirEntryOffset
 	eor IOCBIndex,x
 	bmi channelstatus	; must be ether opened or closed
 	
 
-	bit FmsTmp		; get again for CheckDevice and ExtractFileName
+	bit DirEntryOffset	; get again for CheckDevice and ExtractFileName
 	bpl mustopen		; and hence is checked already
 	jsr CheckDevice		; check whether the device is available then
 mustopen:
-	bit FmsTmp		; extract a file name?
-	bvc nofile
+	bit DirEntryOffset	; extract a file name?
+	bvc nolocate
+
 	jsr ExtractFileName
-nofile:	
+	lsr DirEntryOffset	; need to locate the file?
+	bcc nolocate
+	
+	sty DirEntryOffset	; keep for rename
+
+	lda ZAux1
+	and #2			; has been modified by /D?
+	bne filenotfound	; if so, skip:	Keep this filename as it is, including the /D
+	lda FileCounter		; a specific filenumber?
+	bpl keepfile
+	lda ZAux2		; get the file counter
+	beq keepfile		; ignore if the argument is zero
+	sta FileCounter		; and store it
+keepfile:
+	jsr LocateFile		; check whether we can find it
+	bcs filenotfound	; signal an error if not found
+nolocate:	
 	rts			; call it
 channelstatus:
 	ldy #ChannelInUse
-	lda IOCBIndex,x
-	bpl isopen
+	bit DirEntryOffset
+	bmi toyerror
 	ldy #ChannelNotOpen
-isopen:
 	Skip2
 invalid:
 	ldy #UnsupportedCmd
+	Skip2
+filenotfound:
+	ldy #FileNotFound
+toyerror:	
 	jmp YError
 SpecialLo:
 	.byte <(FmsRename-1),<(FmsDelete-1),<(FmsFind-1),<(FmsLock-1),<(FmsUnlock-1),<(FmsPoint-1),<(FmsNote-1)
@@ -1599,24 +1661,14 @@ SpecialLo:
 SpecialHi:
 	.byte >(FmsRename-1),>(FmsDelete-1),>(FmsFind-1),>(FmsLock-1),>(FmsUnlock-1),>(FmsPoint-1),>(FmsNote-1)
 	.byte >(FmsInitDisk-1),>(FmsFind-1),>(FmsBload-1),>(FmsFormat-1),>(FmsFormatStandard-1)
-AgendaByte:			; $80:	channel must be closed for operation, $40: ExtractFileName
-	.byte	$c0,$c0,$c0,$c0,$c0,$00,$00
-	.byte	$80,$c0,$c0,$80,$80
+AgendaByte:
+	; $80:	channel must be closed for operation, $40: ExtractFileName, $01: Locate file
+	.byte	$c1,$c1,$c1,$c1,$c1,$00,$00
+	.byte	$80,$c1,$c0,$80,$80
 .endproc
 ;;; *** FmsFind
 ;;; *** Resolve a wildcard filespec
 .proc	FmsFind
-	lda ZAux1
-	and #2			; has been modified by /D?
-	bne FileNotFoundError	; if so, skip:	Keep this filename as it is, including the /D
-	lda FileNumber,x	; a specific filenumber?
-	bpl keepfile
-	lda ZAux2		; get the file counter
-	beq keepfile		; ignore if the argument is zero
-	sta FileNumber,x	; and store it
-keepfile:		
-	jsr LocateFile		; check whether we can find it
-	bcs FileNotFoundError	; signal an error if not found
 	jsr LoadThisDirEntry
 	ldy #5
 	sty DirEntryOffset
@@ -1641,44 +1693,35 @@ skip:
 	jsr insert
 	jmp ExitFine
 insert:	
+	inc ComponentStart
 	ldy ComponentStart
-	iny
 	sta (ZAdr),y
-	sty ComponentStart
 	rts
 .endproc
-FileNotFoundError:
-	Error FileNotFound
 ;;; *** FmsRename
 ;;; *** Rename a filespec
 .proc	FmsRename	
-	tya			; still loaded with the offset from ExtractFileName
-	pha			; keep where this name ended
-	jsr LocateFile		; try to find the source filespec
-	bcs FileNotFoundError	; bail out with an error if not available
-	pla
-	tay			; restore the offset
-	jsr ExtractNextFileName	; get the target name
 renameloop:
+	ldy DirEntryOffset	; restore the offset
+	jsr ExtractNextFileName	; get the target name
 	jsr TestForProtection	; check whether the located source is write protected
-	jsr InsertFileName	; overwrite by the target name
+	jsr ChangeFileName	; overwrite by the target name
 	jsr WriteDir
-	jsr LocateNextFile	; get the next matching pattern
+	jsr ExtractFileName
+	jsr LocateFile::LocateNextFile	; get the next matching pattern
 	bcc renameloop		; continue until all files renamed
-	jmp ExitFine
+exit:	
+	jmp ExitFine		; stack cleaned up here
 .endproc
 ;;; *** FmsDelete
 ;;; *** Delete a filespec
 .proc	FmsDelete	
-	jsr LocateFile		; try to find it
-	bcs FileNotFoundError	; bail out if not found
 	lda #125		; bytes per sector (regular case)
 	sta SpecialFlag,x
 deleteloop:
 	jsr DeleteFile		; delete it
-	jsr LocateNextFile	; advance to the next
+	jsr LocateFile::LocateNextFile	; advance to the next
 	bcc deleteloop
-	jsr WriteVTOC		; write the modified VTOC back
 	jmp ExitFine		; done with it
 .endproc
 ;;; *** FmsLock
@@ -1693,16 +1736,14 @@ deleteloop:
 .proc	FmsUnlock
 	lda #$00		; ditto
 	sta FmsTmp		; keep it temporarely	
-	jsr LocateFile
-	bcs FileNotFoundError
 lockloop:
-	jsr LoadDirOffset	; entry in the directory buffer
-	lda (FileBuffer),y	; get the old setting
+	jsr LoadThisDirEntry
+	lda (FmsPtr),y		; get the old setting
 	and #$df		; mask the protection bit out
 	ora FmsTmp		; insert the new bit
-	sta (FileBuffer),y
+	sta (FmsPtr),y
 	jsr WriteDir		; write it back
-	jsr LocateNextFile	; and advance
+	jsr LocateFile::LocateNextFile	; and advance
 	bcc lockloop
 	jmp ExitFine		; done with it
 .endproc
@@ -1767,7 +1808,7 @@ invalidpoint:
 ;;; *** Format a disk enhanced density, 963 sectors
 .proc	FmsFormatStandard
 	lda #34			; enhanced format command
-	bne Format		; jump into the real formatter
+	Skip2			; jump into the real formatter
 .endproc
 ;;; *** FmsFormat
 ;;; *** Format a disk, user controlled. AUX1 is the format command,
@@ -1806,6 +1847,7 @@ single:
 	tay
 initdsk:
 	sta (DiskBuffer),y	; initialize buffer
+	sta (FileBuffer),y	; also the directory
 	iny
 	bpl initdsk
 	tay			; reset Y
@@ -1834,7 +1876,7 @@ resetlong:
 	sta (DiskBuffer),y
 	iny
 	bpl resetlong
-	bmi reserve
+	;; not enough room for a branch, just do it again.
 short:	
 	ldy #10			; start classical VTOC
 resetshort:
@@ -1842,7 +1884,6 @@ resetshort:
 	iny
 	cpy #100		; reserve all up to byte 100
 	bcc resetshort
-reserve:
 	;; now reserve bytes for VTOC and directory
 	ldy #$0a
 	lda #$0f
@@ -1856,43 +1897,39 @@ reserve:
 	jsr WriteVTOC
 	;; now reset the directory
 	lda #$00
-	tay
-resetdir:
-	sta (FileBuffer),y
-	iny
-	bpl resetdir
 clrlp:
 	sta FileCode,x
-	jsr WriteDir
+	jsr WriteDir		; directory buffer is already empty
 	clc
 	lda FileCode,x
 	adc #$20
 	bcc clrlp
 	sta FileCode,x		; Prepare to write again the first directory
+	;; C=1, A=0, Y=1 here.
+	jsr AccessDisk		; clear the boot sector
+
 	;; now write the headline
 	jsr FindColon
 	iny
 	lda (ZAdr),y		; a usable disk name?
 	bmi nohdr
 	sty FmsTmp
-	ldy #$f			; end offset, clear the headline buffer
-	lda #' '|$80		; inverse blank
-hdclear:
-	sta (FileBuffer),y
-	dey
-	bne hdclear
+	ldy #0			; start of the dir entry
 	lda #$63		; headline status
 	sta (FileBuffer),y
-	sty FmsPtr
+	sty DirEntryOffset
 	;; insert the headline now
 hd3l:
 	ldy FmsTmp
 	lda (ZAdr),y
-	bmi done
+	bpl valid
+	lda #' '		; continue with blanks
+	Skip2
+valid:	
 	inc FmsTmp
-	inc FmsPtr
+	inc DirEntryOffset
 	ora #$80		; make inverse
-	ldy FmsPtr
+	ldy DirEntryOffset
 	sta (FileBuffer),y
 	cpy #$f
 	bcc hd3l
@@ -1998,9 +2035,9 @@ nocarry:
 	jmp loadloop
 ;;; *** initialize an init vector
 VectorInit:
-	lda #<NoRun
+	lda #<RTSVector
 	sta RunVector,y
-	lda #>NoRun
+	lda #>RTSVector
 	sta RunVector+1,y
 NoRun:
 	rts
@@ -2028,6 +2065,15 @@ InitAddress:
 	sta IOCBLen,x
 	rts
 .endproc
+;;; Binary load the indicated file
+LoadFile:
+	ldx #$10		; use traditionally IOCB#1 for this
+	jsr InitCIOAddress	; Insert this as command
+	lda #$c0		; run and init
+	sta IOCBAux1,x		; init and run the file
+	lda #CmdBload		; binary load
+	Skip2			; run into the dispatcher
+	;; into the following
 ;;; *** Read a block from CIO
 .proc	GetBlock
 	lda #7
@@ -2037,4 +2083,8 @@ InitAddress:
 	sta IOCBCmd,x
 	jmp CIOVector
 .endproc
-
+;;; File names
+Config:		.byte "D:CONFIG.SYS",$9b	; shall contain drive/fms settings or patches
+Handlers:	.byte "D:HANDLERS.SYS",$9b	; shall contain additional handlers
+Autorun:	.byte "D:AUTORUN.SYS",$9b	; the traditional bootstrap
+	

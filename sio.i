@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: sio.i,v 1.4 2003/04/26 20:33:49 thor Exp $			**
+;;; ** $Id: sio.i,v 1.4 2003-04-26 20:33:49 thor Exp $			**
 ;;; **									**
 ;;; ** In this module:	 Serial IO interface				**
 ;;; **********************************************************************

@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: keyboard.asm,v 1.12 2008-12-29 23:37:23 thor Exp $		**
+;;; ** $Id: keyboard.asm,v 1.14 2014/01/01 01:23:40 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 Implementation of the E: handler		**
 ;;; **********************************************************************
@@ -67,7 +67,6 @@ WaitLoop:
 	lda KeyCodeShadow	; get the currently active keyboard code
 	cmp #$ff		; no key pressed?
 	beq WaitLoop
-	;; sta KeyCodeHold	; not required
 	ldx #$ff		; clear this flag
 	stx KeyCodeShadow
 	ldx NoClick		; clicking enabled or disabled?

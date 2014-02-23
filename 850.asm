@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: 850.asm,v 1.14 2009-05-03 20:58:13 thor Exp $		**
+;;; ** $Id: 850.asm,v 1.15 2013/06/02 20:41:03 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	The 850 handler, resident part			**
 ;;; ** this would be part of the 850 interface box			**

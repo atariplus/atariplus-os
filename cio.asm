@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: cio.asm,v 1.12 2008-08-25 16:43:14 thor Exp $		**
+;;; ** $Id: cio.asm,v 1.15 2014/01/19 12:19:57 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 Central IO functions				**
 ;;; **********************************************************************
@@ -108,9 +108,13 @@ CallVector:
 	ldy #$01		; setup default result code:	fine
 	sty ZStatus
 	jsr LoadHandlerVec	; get the close vector
-	bmi forceclose		; on error:	Mark the vector as free
+	bmi CloseIOCB		; on error:	Mark the vector as free
 	jsr RunVector		; run the close vector
-forceclose:			; mark as free
+.endproc
+	;; runs into the following
+;;; *** CloseIOCB
+;;; *** Mark the IOCB as closed
+.proc	CloseIOCB
 	lda #<(PutErrorByte-1)
 	sta ZPut
 	lda #>(PutErrorByte-1)	; install a dummy handler here.
@@ -147,6 +151,7 @@ channelfree:
 	jsr LoadHandlerVec	; load the vector for the jump
 	bmi ErrorRts
 	jsr RunVector		; run the open vector of the device
+	;; bmi CloseIOCB	; interestingly, the XL os leaves the channel open...
 	rts
 .endproc
 ;;; *** CIOStatus and CIOSpecial
@@ -226,9 +231,7 @@ errskip:
 	sta (ZAdr),y
 	jsr IncBuffer
 endblock:			; end of block transfer
-	jsr RemainingBytes	; insert the remaing bytes into the ZIOCB
-	jsr ResetBuffer		; reset the buffer pointer to the start
-	rts
+	jmp RemainingBytesReset	; insert the remaing bytes into the ZIOCB and reset the buffer
 .endproc
 ;;; *** CIOPut vector
 ;;; *** Write blocks and records
@@ -272,9 +275,7 @@ end:
 	sta ZIOByte
 	jsr RunVector
 endblock:
-	jsr RemainingBytes
-	jsr ResetBuffer
-	rts
+	jmp RemainingBytesReset
 .endproc
 ;;; *** CIO misc. service routines follow
 ;;; *** IncBuffer: Increment the buffer pointer
@@ -313,9 +314,13 @@ nocarry:
 	ora ZLen		; check for zero
 	rts
 .endproc
-;;; *** RemainingBytes:	Compute the number of
-;;; *** bytes remaining in the buffer.
-.proc	RemainingBytes
+;;; *** RemainingBytesReset:
+;;; *** Compute the number of bytes remaining in the buffer
+;;; *** and reset the buffer to its beginning.
+;;; *** This is done after read/write blocks
+;;; *** such that the CIO end routine writes the
+;;; *** start of the buffer back.
+.proc	RemainingBytesReset
 	ldx ZIOCB
 	sec
 	lda IOCBLen,x
@@ -324,15 +329,7 @@ nocarry:
 	lda IOCBLen+1,x
 	sbc ZLen+1
 	sta ZLen+1
-	rts
-.endproc
-;;; *** ResetBuffer
-;;; *** Reset the buffer pointer to its
-;;; *** beginning. This is done after read/write blocks
-;;; *** such that the CIO end routine writes the
-;;; *** start of the buffer back.
-.proc	ResetBuffer
-	ldx ZIOCB
+	
 	lda IOCBAdr,x
 	sta ZAdr
 	lda IOCBAdr+1,x

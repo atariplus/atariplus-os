@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: editor.i,v 1.14 2008-09-23 19:35:24 thor Exp $		**
+;;; ** $Id: editor.i,v 1.16 2014/01/01 18:22:16 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 Implementation of the E: handler		**
 ;;; **********************************************************************
@@ -19,6 +19,7 @@ BufferCnt		=	$6b	; number of characters in the editor buffer
 StartLogicalRow		=	$6c	; start Y position of the current logical row (above or equal to the cursor row)
 StartLogicalColumn	=	$6d	; start X position of the current logical row 
 					; (these two give the position where E: read will return data from)
+BitMask			=	$6e	; temporary masking register
 SwapFlag		=	$7b	; flag that indicates whether text window data has been swapped in
 InsDat			=	$7d	; temporary flag/character
 FineScrollFlag		=	$26e	; finescroll flag. Enabled if this is < 0
@@ -26,6 +27,7 @@ WindowRow		=	$290	; cursor row within the text window
 WindowColumn		=	$291	; cursor column within the text window (two bytes)
 WindowGfxMode		=	$293	; graphics mode of the text window. Always zero.
 WindowOrigin		=	$294	; origin of the text window in memory
+MaxRows			=	$29d	; temporary holder of screen height in lines
 TabStops		=	$2a3	; this array keeps the position of the TAB stops
 TabStopsSize		=	15	; number of bytes in the TAB-table
 LineStarts		=	$2b2	; this array keeps the display lines containing logical line starts

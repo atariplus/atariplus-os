@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: fms.i,v 1.22 2006/05/21 15:23:11 thor Exp $			**
+;;; ** $Id: fms.i,v 1.27 2013-04-07 17:18:23 thor Exp $			**
 ;;; **									**
 ;;; ** In this module:	 Implementation of the D: handler		**
 ;;; **********************************************************************
@@ -12,6 +12,10 @@
 
 FmsTmp			=	$15		;another temporary
 DirEntryOffset		=	$16		;used for the directory scanner
+ComponentStart		=	$18		;for the file name scanner: Offset to the ":" in the name
+FmsStack		=	$19		;stack pointer
+FileCounter		=	$1a		;stores the file number of non-unique file names, or -1
+FreeDirCode		=	$1b		;next available directory code for a free file
 FmsPtr			=	$43		;temporary pointer for miscellaneous use
 DiskBuffer		=	$45		;disk buffer currently used
 FileBuffer		=	$47		;file buffer currently used
@@ -20,19 +24,16 @@ InitVector		=	$2e2		;binary load init vector stored here
 
 FmsBuffers		=	$709		;number of file buffers we shall allocate
 FmsDriveMask		=	$70a		;number of drives we shall supply buffers for
-DiskBufferBase		=	$710		;keeps address of the disk buffers
+DiskBufferBase		=	$70c		;keeps address of the disk buffers
 FileBufferBase		=	$712		;keeps address of the file buffers
-FileNameBuffer		=	$714		;buffers the currently used filename, 12 characters
-FreeDirCode		=	$724		;next available directory code for a free file
-ComponentStart		=	$728		;for the file name scanner: Offset to the ":" in the name
+;; FileNameBuffer-1 will be overwritten!
+FileNameBuffer		=	$715		;buffers the currently used filename, 12 characters.
 BloadFlags		=	$729		;for binary load: start/run flags
 BloadIOCB		=	$72a		;the IOCB used for BLOAD
 StartAddress		=	$72b		;keeps the load address of the file for bload
 EndAddress		=	$72d		;keeps the end address
-FmsStack		=	$72f		;stack pointer
 AvailFlags		=	$730		;disk unit available flags. non-zero if available
 FileBufferFlags		=	$738		;file buffer available flags. non-zero if allocated
-;; $740..$74f are reserved for the DUP
 WriteCommand		=	$779		;the command the disk device uses for writing, 'P' or 'W'
 
 FCBBase			=	$780		;floppy control block start (16 bytes each)
@@ -45,7 +46,6 @@ BytePosition		=	FCBBase+6	;byte pointer within the current sector
 OpenBuffer		=	FCBBase+7	;non-negative if open. Then the allocated buffer index
 FileSector		=	FCBBase+8	;current sector to access
 NextSector		=	FCBBase+10	;next sector to access
-FileNumber		=	FCBBase+12	;file number for addressing non-unique filenames, or -1 
 FileLength		=	FCBBase+14	;counts the file size
 
 FmsEnd			=	$800		;user buffers start here
@@ -77,3 +77,4 @@ CmdFormat		=	254		; single density format for backwards compatibility
 	.global FmsPut
 	.global FmsStatus
 	.global FmsSpecial
+

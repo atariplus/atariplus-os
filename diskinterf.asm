@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: diskinterf.asm,v 1.3 2003/04/02 21:15:07 thor Exp $		**
+;;; ** $Id: diskinterf.asm,v 1.4 2013/06/02 20:41:03 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 Resident disk handler				**
 ;;; **********************************************************************

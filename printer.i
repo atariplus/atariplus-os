@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: printer.i,v 1.1 2003/03/31 20:57:03 thor Exp $		**
+;;; ** $Id: printer.i,v 1.1 2003-03-31 20:57:03 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 Implementation of the P: handler		**
 ;;; **********************************************************************

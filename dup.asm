@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: dup.asm,v 1.21 2008-09-24 13:59:48 thor Exp $		**
+;;; ** $Id: dup.asm,v 1.28 2014/01/13 06:09:45 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 Minimal DUP command line parser		**
 ;;; **********************************************************************
@@ -47,8 +47,8 @@
 DirInit:	.byte "D1:"	; initializer for the device directory
 DirInitL	=	*-DirInit
 Title:		.byte $7d
-		.byte "Thor Dos 2.++ V 1.6 Enhanced Density",$9b
-		.byte "Copyright (c) 1990-2006 by THOR",$9b
+		.byte "Thor Dos 2.++ V 1.8 Enhanced Density",$9b
+		.byte "Copyright (c) 1990-2014 by THOR",$9b
 TitleL		=	*-Title
 ;;; *** InitDriveName
 ;;; *** Install the device name
@@ -315,15 +315,17 @@ repeat:				; call the command and return
 error:
 	jmp ErrorExtraArgument
 ;;; Commands sorted by character position for easy comparison
-CmdChar1:	.byte "DDRLUCFCRSCL"
-CmdChar2:	.byte "IEEONAOLUAOO"
-CmdChar3:	.byte "RLNCLRRENVPA"
+CmdChar1:	.byte "DDRLUCFCRSCLN"
+CmdChar2:	.byte "IEEONAOLUAOOE"
+CmdChar3:	.byte "RLNCLRRENVPAW"
 NumCommands	=	*-CmdChar3
 ;;; command targets/jump addresses
 CmdHi:		.byte >(CmdDir-1),>(CmdDel-1),>(CmdRen-1),>(CmdLoc-1),>(CmdUnl-1),>(CmdCar-1)
 		.byte >(CmdFor-1),>(CmdCle-1),>(CmdRun-1),>(CmdSav-1),>(CmdCop-1),>(CmdLoa-1)
+		.byte >(CmdNew-1)
 CmdLo:		.byte <(CmdDir-1),<(CmdDel-1),<(CmdRen-1),<(CmdLoc-1),<(CmdUnl-1),<(CmdCar-1)
 		.byte <(CmdFor-1),<(CmdCle-1),<(CmdRun-1),<(CmdSav-1),<(CmdCop-1),<(CmdLoa-1)
+		.byte <(CmdNew-1)
 .endproc
 ;;; *** Commands start here:	Generic CIO commands are handled by a single jump-in
 ;;; *** CmdFor
@@ -711,6 +713,21 @@ cps:
 error:
 	jmp ErrorExtraArgument
 .endproc
+;;; *** CmdNew
+;;; *** Erase the user memory, make available for copy
+.proc	CmdNew
+	jsr CheckForEOL		; must not have any argument
+	bne error
+	lda FmsBootFlag
+	ora #1			; indicate that we're erasing application memory
+	sta FmsBootFlag		; Yikes!
+	lda #0
+	sta AppMemHi
+	sta AppMemHi+1
+	rts
+error:
+	jmp ErrorExtraArgument
+.endproc
 ;;; *** CmdCop
 ;;; *** Copy a file or a couple of files
 .proc	CmdCop
@@ -719,6 +736,7 @@ error:
 	ldy #0				; copy from here
 	sty SourceCount			; first source file
 	sty HasTarget			; no target
+	sty SameDevice			; are on the same device
 	ldx #DupTargetBuffer-DupBuffer	; default:	Target equals source
 	jsr MoveBuffer			; copy over
 	pla
@@ -732,10 +750,22 @@ error:
 	ldx #DupTargetBuffer-DupBuffer ; copy to over here
 	jsr SetDevice		; if we have it
 	jsr CheckForEOL		; Is there really a filespec?
-	beq nooption
+	beq checkforidentical
+	jsr LastOption
 	ldx #DupTargetBuffer-DupBuffer+3 ; without the device spec
 	jsr MoveBuffer		; move the remaining stuff to the target
+	dey
 	inc HasTarget		; we do so, indeed
+checkforidentical:	
+	;; check whether the two devices (source, target) are identical
+	lda DupTargetBuffer
+	cmp DupBuffer
+	bne separate
+	lda DupTargetBuffer+1
+	cmp DupBuffer+1
+	beq nooption
+separate:
+	inc SameDevice		; are on separate devices
 nooption:
 	jsr LastOption		; but then, this must be the last option
 	;; Now loop over the source files
@@ -804,20 +834,15 @@ contread:
 	ldy #0			; seek in the source
 	jsr Seek
 noseek:
-	lda FmsBootFlag
-	ora #1			; indicate that we're erasing application memory
-	sta FmsBootFlag		; Yikes!
-	
-	lda MemLo+1
-	ldy MemLo
+	jsr GetMemLo
 	jsr SetIOCBAddress	; start reading from here
 	;; 
 	sec
 	lda MemTop
-	sbc MemLo
+	sbc IOCBAdr,x
 	sta IOCBLen,x
 	lda MemTop+1
-	sbc MemLo+1		; up to MemTop
+	sbc IOCBAdr+1,x		; up to MemTop
 	sta IOCBLen+1,x		; set length of data to be read
 	lda #CmdGetBlock
 	jsr ExecuteCmd	
@@ -836,11 +861,16 @@ noseek:
 notell:
 	jsr CloseChannel
 
+	lda SameDevice
+	bne isonother
+	jsr PrintInsert
 	ldy #<DestinationMsg
 	lda #>DestinationMsg
 	ldx #DestinationMsgL
 	jsr Print		; print that the user has now to insert the target
+	jsr PrintReturn
 	jsr WaitForKey		; wait that the user hits a key
+isonother:
 
 	ldx #$10
 	lda #>DupTargetBuffer	; open from here
@@ -858,9 +888,8 @@ notell:
 	ldy #3
 	jsr Seek		; seek to the continuation position where we stopped last time
 firstgo:
-	
-	lda MemLo+1
-	ldy MemLo
+
+	jsr GetMemLo
 	jsr SetIOCBAddress	; start writing from here, buffer length should be still in the IOCB
 
 	lda BlockSize
@@ -949,12 +978,28 @@ Seek:
 	sta IOCBAux5,x
 	lda #CmdPoint
 	jmp ExecuteCmd
+;;; PrintInsert: Print the first part of the message
+PrintInsert:
+	ldy #<InsertMsg
+	lda #>InsertMsg
+	ldx #InsertMsgL
+	jmp Print
+;;; PrintReturn: Print the second part of the message
+PrintReturn:
+	ldy #<ReturnMsg
+	lda #>ReturnMsg
+	ldx #ReturnMsgL
+	jmp Print
 ;;; RequestSource
-RequestSource:	
+RequestSource:
+	lda SameDevice
+	bne exitwait		; no need to request the source
+	jsr PrintInsert
 	ldy #<SourceMsg
 	lda #>SourceMsg
 	ldx #SourceMsgL
 	jsr Print		; print that the user has now to insert the target
+	jsr PrintReturn
 	;; runs into the following
 ;;; WaitForKey:	Wait for a keypress
 WaitForKey:
@@ -971,17 +1016,47 @@ brkd:
 	stx KeyCodeShadow
 	tay			; hit break?
 	beq exitbrk
+exitwait:	
 	rts
 exitbrk:
 	txs			; reset the stack
 	jmp DupLoop
+;;; GetMemLo
+;;; Get the smallest address that can be populated for copying data
+;;; lo in Y, hi in A
+.proc	GetMemLo
+	lda AppMemHi		; is this set?
+	cmp MemLo
+	lda AppMemHi+1
+	sbc MemLo+1
+	bcs useAppMem		; if so, copy from this point on
+	;; not set. Assume that either the application forgot to set it,
+	;; or there is none. Erase user memory
+	lda FmsBootFlag
+	ora #1			; indicate that we're erasing application memory
+	sta FmsBootFlag		; Yikes!
+	lda MemLo+1
+	ldy MemLo
+	rts
+useAppMem:			; be nice and use Application memory
+	lda AppMemHi+1
+	ldy AppMemHi
+	rts
+.endproc
 
 CopyHdr:	.byte "Copying "
 CopyHdrL	=	*-CopyHdr
+
+InsertMsg:	.byte "Insert "
+InsertMsgL	= 	*-InsertMsg
+
+ReturnMsg:	.byte " ,press "
+		.byte 'R'+$80,'E'+$80,'T'+$80,'U'+$80,'R'+$80,'N'+$80,$9b
+ReturnMsgL	=	*-ReturnMsg
 	
-DestinationMsg:	.byte "-> Target",$9b
+DestinationMsg:	.byte "Target"
 DestinationMsgL	=	*-DestinationMsg
 
-SourceMsg:	.byte "-> Source",$9b
+SourceMsg:	.byte "Source"
 SourceMsgL	=	*-SourceMsg
 .endproc

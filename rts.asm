@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: rts.asm,v 1.2 2003/05/17 22:21:16 thor Exp $		**
+;;; ** $Id: rts.asm,v 1.3 2013/06/02 20:41:07 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 A single RTS					**
 ;;; **********************************************************************

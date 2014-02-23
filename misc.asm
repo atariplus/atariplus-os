@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: misc.asm,v 1.13 2008-12-29 23:37:23 thor Exp $		**
+;;; ** $Id: misc.asm,v 1.21 2014/01/13 06:09:45 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 Miscellaneous helper functions in the kernel	**
 ;;; **********************************************************************
@@ -57,7 +57,7 @@ set:
 	.global InitNMI
 .proc	InitNMI	
 	lda Trigger3
-	sta Trig3Shadow		; setup the shadow register (not really required, for compatibility)
+	sta Trigger3Shadow		; setup the shadow register (not really required, for compatibility)
 	lda #$40		; VBI on, DLI off
 	sta NMIEnable
 	rts
@@ -140,9 +140,15 @@ freeslot:			; found a free slot to enter the device
 ;;; *** SelfTest
 	.global SelfTest
 .proc	SelfTest
-	lda #$c0		; initialize the fms and run the dup
-	sta FmsBootFlag
-	jmp WarmStartVector
+	sei
+	lda #$0
+	sta NMIEnable
+	sta BootFlag
+	sta WarmStartFlag
+	lda #$c1		; initialize the fms and run the dup
+	jsr InitVectors
+	jsr FmsInitVector
+	jmp LaunchDosVector
 .endproc
 	
 	
@@ -239,4 +245,20 @@ fail:				; runs into the following
 	sta PIAPortB
 	rts
 .endproc
-	
+;;; *** LaunchDup
+;;; *** Run the built-in dup
+.proc	LaunchDup
+	jsr MapSelfTest
+	jmp RunDup		; is within the selftest
+.endproc	
+;;; *** Offsets into spare areas in the directory not used
+;;; *** for the directory listing that can be used by the FMS
+	 .global FileTmpOffset
+FileTmpOffset:		; first sector entry, not required for the dir listing
+			; do not use up the first entry, reserved for headline.
+	.byte $23,$24	
+	.byte $33,$34
+	.byte $43,$44
+	.byte $53,$54
+	.byte $63,$64
+	.byte $73,$74

@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: charmap.asm,v 1.1 2003/04/03 15:59:06 thor Exp $		**
+;;; ** $Id: charmap.asm,v 1.2 2013/06/02 20:41:03 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 The ROM font generator				**
 ;;; **********************************************************************

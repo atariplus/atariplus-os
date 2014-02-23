@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: loader.asm,v 1.3 2003/06/02 20:25:43 thor Exp $		**
+;;; ** $Id: loader.asm,v 1.4 2013/06/02 20:41:05 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	The loader of the main RS-232 handler		**
 ;;; **********************************************************************

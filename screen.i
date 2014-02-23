@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: screen.i,v 1.15 2003/04/14 20:59:32 thor Exp $		**
+;;; ** $Id: screen.i,v 1.17 2014/01/01 18:22:16 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 Implementation of the S: handler		**
 ;;; **********************************************************************
@@ -25,21 +25,15 @@ STmp2			=	$67	; temporary
 DLBottom		=	$68	; bottom address of the new display list
 ScrollPtr		=	$68	; another name for this temporary
 RamTop			=	$6a	; topmost usable page, screen starts underneath (screen handler private)
-BitMask			=	$6e	; temporary masking register
 ShiftMask		=	$6f	; contains the mask to mask out the current pixel, too
 RowAccu			=	$70	; error accumulator of the row for the line drawer
 ColumnAccu		=	$72	; error accumulator for the column, line drawer
-DeltaMax		=	$74	; maximum of the two delta's
+DeltaMax		=	$74	; maximum of the two deltas
 DeltaRow		=	$76	; incrementer register for the line drawer
 DeltaColumn		=	$77	; incrementer register for the line drawer
 Counter			=	$7e	; counter register for the draw function, and other temporaries
-MaxRows			=	$29d	; temporary holder of screen height in lines
-ReqBytes		=	$29e	; temporary for the memory allocator
 PixelMask		=	$2a0	; contains the mask to mask out the current pixel
 FillFlag		=	$2b7	; set if the line drawer is in fact a filler
-TmpCursorRow		=	$2b8	; temporary cursor row for area filler
-TmpCursorColumn		=	$2b9	; ditto for the column
-TmpScreenByte		=	$2bc	; area filler temporary color saver
 NewCursorRow		=	$2f5	; for the line drawer: The target position
 NewCursorColumn		=	$2f6	; ditto, but the column
 DeltaRowSign		=	$2f8	; incrementer in Y direction

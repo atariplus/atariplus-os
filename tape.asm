@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: tape.asm,v 1.2 2003/04/03 15:16:15 thor Exp $		**
+;;; ** $Id: tape.asm,v 1.5 2014/01/19 12:19:57 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 Implementation of the C: handler		**
 ;;; **********************************************************************
@@ -19,37 +19,35 @@
 ;;; *** Open the C: handler (or not)
 	.global TapeOpen
 .proc	TapeOpen
-	ldy #UnknownDevice		; keep room for Atari++ Os patches
+	ldy #UnknownDevice
 	rts
+.endproc;
+;; *** Tape status handler
+	.global TapeStatus
+.proc	TapeStatus
+	;; runs into the following
 .endproc
 ;;; *** Close the C: handler
 	.global TapeClose
 .proc	TapeClose
 	ldy #$01		; ok, accept this
-	rts
+	;; runs into the following rts
+	;; rts
 .endproc
 ;;; *** Read from the C: handler (or not)
 	.global TapeGet
 .proc	TapeGet
-	ldy #UnsupportedCmd
-	rts
+	;; runs into the following
 .endproc
 ;;; *** Write to the C:	handler (or not)
 	.global TapePut
 .proc	TapePut
-	ldy #UnsupportedCmd
-	rts
+	;; runs into the following
 .endproc
 ;;; *** Tape special handler
 	.global TapeSpecial
 .proc	TapeSpecial
-	ldy #UnsupportedCmd
-	rts
-.endproc
-;;; *** Tape status handler
-	.global TapeStatus
-.proc	TapeStatus
-	ldy #$01		; is fine
+	;; ldy #UnsupportedCmd ; unsupportedCmd is the default CIO handler result
 	rts
 .endproc
 ;;; *** Tape init vector. Does nothing

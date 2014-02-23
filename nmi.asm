@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: nmi.asm,v 1.12 2008-11-24 21:22:55 thor Exp $		**
+;;; ** $Id: nmi.asm,v 1.16 2013/06/02 20:41:06 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 Support for NMI routines of all kinds		**
 ;;; **********************************************************************
@@ -24,29 +24,41 @@
 	bpl vbi
 	jmp (VecDLI)		; jump thru the display list interrupt. We'd better be quick here
 vbi:
-	bvc reset		; support for A800 like reset signal to be on the safe side
 	cld
+	bvc other		; support for A800 like reset signal to be on the safe side
 	pha
 	txa
 	pha
 	tya
 	pha
 	jmp (VecImmediate)	; jump to immediate VBI here
-reset:
-	jmp WarmStartVector
+other:
+	pha
+	lda NMIStat
+	and #$20		; occasionally, NMIstat can be zero here if the user erases it just in time
+	bne reset
+	pla			; just ignore. This will break the acid test, but leave the machine sane.
+	rti
+reset:	
+	jmp (VecNMI)
 .endproc
 
 ;;; ** Short VBI exit routine, only copy the
 ;;; ** bare minimum
 .proc	ShortVBI
+	lda GPriorSet
+	beq ExitVBI
+
 	lda ColorBackShadow	; restore registers overwritten by OS DLIs	
 	eor ColorMask
 	and DarkMask
 	sta ColorBack
+	
 	lda Color1Shadow
 	eor ColorMask
 	and DarkMask
 	sta Color1
+	
 	lda GPriorShadow
 	sta GPrior
 	;; runs into the following
@@ -114,7 +126,7 @@ noattractmode:
 
 	lda DMACtrlShadow	; reload DMA control register
 	sta DMACtrl
-
+	
 	lda GPriorShadow	; GTIA Priority register
 	sta GPrior
 

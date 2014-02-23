@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: printer.asm,v 1.4 2003/04/26 20:33:49 thor Exp $		**
+;;; ** $Id: printer.asm,v 1.6 2014/01/19 12:19:57 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 Implementation of the P: handler		**
 ;;; **********************************************************************
@@ -155,6 +155,5 @@ emptybuffer:			; here:	buffer is full, transmit
 	sta SIOSizeHi
 	lda PrinterTimeout	; insert the timeout
 	sta SIOTimeout
-	jsr SIOVector		; now run SIO
-	rts
+	jmp SIOVector		; now run SIO
 .endproc

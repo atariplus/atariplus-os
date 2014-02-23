@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: keyboard.i,v 1.3 2003/03/30 12:56:32 thor Exp $		**
+;;; ** $Id: keyboard.i,v 1.4 2014/01/01 01:23:40 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 Implementation of the K: handler		**
 ;;; **********************************************************************
@@ -10,7 +10,6 @@
 ;; Definitions for the keyboard handler
 FuncKeyDef		=	$60	; function key definition table (1200XL only)
 KeyDef			=	$79	; keyboard definition table
-KeyCodeHold		=	$7c	; keeps the keyboard code after reading
 InverseMask		=	$2b6	; if set, then characters are presented in inverse
 ShiftLock		=	$2be	; keyboard modifier state
 NoClick			=	$2db	; set if keyboard click is disabled

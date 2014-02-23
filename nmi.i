@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: nmi.i,v 1.6 2003/04/02 19:37:14 thor Exp $			**
+;;; ** $Id: nmi.i,v 1.8 2013-03-09 12:39:31 thor Exp $			**
 ;;; **									**
 ;;; ** In this module:	 Support for NMI routines of all kinds		**
 ;;; **********************************************************************
@@ -29,7 +29,9 @@ DMACtrlShadow	=	$22f		;; Antic DMA Control shadow register
 DListShadow	=	$230		;; Antic display list shadow register
 PenHShadow	=	$234		;; light pen horizontal position shadow register
 PenVShadow	=	$235		;; light pen vertical position shadow register
+VecNMI		=	$24e		;; new: vector for Antic "reset" NMI
 
+GPriorSet       =       $26a	        ;; Copy gprior over
 FineScroll	=	$26c		;; Antic fine scrolling
 KeyDisable	=	$26d		;; keyboard disable flag
 GPriorShadow	=	$26f		;; GTIA Prior shadow register

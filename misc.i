@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: misc.i,v 1.7 2008-12-29 23:37:23 thor Exp $		**
+;;; ** $Id: misc.i,v 1.12 2014/01/04 18:55:12 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 Miscellaneous helper functions in the kernel	**
 ;;; **********************************************************************
@@ -10,7 +10,6 @@
 ;; Memory used by miscellaneous routines
 
 IRQTemp			=	$22d		; temporary buffer for SetIRQ
-Trig3Shadow		=	$3fa		; shadow register for the cart Ctrl Trig3
 BootSpace		=	$500		; 850 boot requires this
 			; since this shadow register is the #1 reason for OsXL crashes,
 			; we no longer support or encourage its usage, but leave it
@@ -32,3 +31,5 @@ BootSpace		=	$500		; 850 boot requires this
 	.global RunRunVector		; run thru $2e0 disabling the DUP ROM
 	.global	MapSelfTest		; Make selftest area visible
 	.global HideSelfTest		; Make selftest area invisible
+	.global FileTmpOffset		; Offset into temporaries in dir buffer, for FMS
+	.global	LaunchDup		; Entry point to the DUP

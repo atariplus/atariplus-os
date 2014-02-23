@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: irq.asm,v 1.5 2003/04/26 20:33:49 thor Exp $		**
+;;; ** $Id: irq.asm,v 1.7 2014/01/01 01:23:40 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 Support for IRQ routines of all kinds		**
 ;;; **********************************************************************
@@ -177,8 +177,7 @@ datadone:
 	ldy #ChkSumError	; signal a checksum error
 	sty SerialStatus
 xferdone:	
-	lda #$ff
-	sta SerialXferDone	; serial transfer done
+	dec SerialXferDone	; serial transfer done
 exit:		
 	pla
 	tay

@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: gtia.i,v 1.5 2003/04/13 22:11:56 thor Exp $			**
+;;; ** $Id: gtia.i,v 1.5 2003-04-13 22:11:56 thor Exp $			**
 ;;; **									**
 ;;; ** In this module:	 Equates for the GTIA chip			**
 ;;; **********************************************************************

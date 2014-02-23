@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: screen.asm,v 1.27 2008-09-23 19:35:24 thor Exp $		**
+;;; ** $Id: screen.asm,v 1.32 2014/01/19 11:31:43 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 Implementation of the S: handler		**
 ;;; **********************************************************************
@@ -67,6 +67,7 @@ colorinit:
 	inx			; back to zero
 	ldy RamTop
 	stx ScreenPtr		; reset the screen pointer
+	stx GPriorSet
 	sty ScreenPtr+1		; ditto
 	lda #$60		; hard-code the start address
 	dey
@@ -106,7 +107,7 @@ waitvbi:
 	cmp #$7a
 	bcc waitvbi
 
-	lda AlignMask,x		; check whether we need to align the DLI
+	lda AlignMask,x		; check whether we need to align the DL
 	beq noalign
 	lda #$ff		; if so, align the screen ptr to the end of the previous page
 	dec ScreenPtr+1
@@ -118,7 +119,7 @@ noalign:
 	sta DLBottom
 	lda ScreenPtr+1
 	sta DLBottom+1
-	lda #$41		; Jump back:	 DLI instruction
+	lda #$41		; Jump back:	 JVB instruction
 	jsr WriteDL
 
 	lda PriorMask,x		; check whether we can have a text window.
@@ -126,6 +127,7 @@ noalign:
 	lda ZAux1		; only a window if Aux1 is set
 	and #$40
 	beq nowindow
+	sta GPriorSet           ; instruct the VBI to copy prior over
 havewindow:
 	lda ZAux1		; check whether the user wants a text window
 	and #$10
@@ -231,6 +233,21 @@ singlerun:
 	lda #$70
 	jsr WriteDL
 	;; keep the address of the last DL as the start address of the display
+
+	;; Check whether this worked fine so far
+	ldy ScreenError		; did this work?
+	bpl screenisopen	; if so, then we're open here
+	ldx GfxMode             ; check whether we are in mode #0
+        beq lost                ; if so, then we are hopelessy lost here!
+        ;; fall back to mode #0
+	tya
+        pha
+	jsr EditorOpen		; re-open this screen in graphics #0
+        pla
+lost:
+        tya                     ; return with the error code
+        rts
+screenisopen:	
 	ldy #$01
 	lda ScreenPtr
 	sta DListShadow
@@ -246,22 +263,6 @@ singlerun:
 	sta MemTop
 	lda ScreenPtr+1
 	sta MemTop+1		; keep the memory top
-
-	;; Check whether this worked fine so far
-	lda ScreenError		; did this work?
-	bpl screenisopen	; if so, then we're open here
-	ldx GfxMode		; check whether we are in mode #0
-	beq lost		; if so, then we are hopelessy lost here!
-	;; fall back to mode #0
-	pha
-	lda #$00
-	sta GfxMode
-	jsr OpenScreen		; re-open this screen in graphics #0
-	pla
-lost:
-	tya			; return with the error code
-	rts
-screenisopen:
 	;; Now check whether we need to clean the screen
 	lda ZAux1		; get it
 	and #$20
@@ -283,6 +284,7 @@ BottomFineScroll:
 	sta VecDLI+1
 	lda #$c0
 	sta NMIEnable		; and turn on the DLI operation
+	sta GPriorSet
 	lda #$02
 	jsr WriteDL
 	lda #$a2		; DLI, last fine scrolled line
@@ -956,13 +958,13 @@ SubtractMax:
 ;;; fill from this position to the right
 FillRight:
 	lda CursorRow
-	sta TmpCursorRow
+	pha
 	lda CursorColumn
-	sta TmpCursorColumn
+	pha
 	lda CursorColumn+1
-	sta TmpCursorColumn+1	; saveback the drawing registers
+	pha			; saveback the drawing registers
 	lda ScreenByte		; get fill color
-	sta TmpScreenByte
+	pha
 fillloop:
 	lda CursorRow
 	pha
@@ -980,14 +982,14 @@ fillloop:
 	bcc fillloop
 exitfill:
 	;; now restore the settings
-	lda TmpScreenByte
+	pla
 	sta ScreenByte
-	lda TmpCursorRow
-	sta CursorRow
-	lda TmpCursorColumn
-	sta CursorColumn
-	lda TmpCursorColumn+1
+	pla
 	sta CursorColumn+1	; restore the drawing registers
+	pla
+	sta CursorColumn
+	pla
+	sta CursorRow
 	rts
 .endproc
 ;;; *** Screen handler init routine, used for CIO

@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: romtest.asm,v 1.3 2006/05/21 15:23:11 thor Exp $		**
+;;; ** $Id: romtest.asm,v 1.6 2013/06/02 20:41:07 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 ROM checksum computation			**
 ;;; **********************************************************************
@@ -149,6 +149,10 @@ initvec:
 	sta BreakVec
 	lda #>BreakIRQ
 	sta BreakVec+1
+	lda #<WarmStartVector
+	sta VecNMI
+	lda #>WarmStartVector
+	sta VecNMI+1
 	;; now hatabs init
 	ldx #$0
 inithatabs:
@@ -173,6 +177,18 @@ abort:
 	lda #$0
 	sta MemLo		; clear lo-bytes
 	sta MemTop
+	
+	;; now launch all handlers
+	jsr EditorTable+$c	; init E:
+	jsr ScreenTable+$c	; init S:
+	jsr KeyboardTable+$c	; init K:
+	jsr PrinterTable+$c	; init P:
+	jsr TapeTable+$c	; init C:
+	;; misc system resources
+	jsr CIOInitVector	; init CIO
+	jsr SIOInitVector	; init SIO
+	jsr NMIInitVector	; init NMIs
+	jsr DiskInitVector	; init resident disk handler		
 	rts
 	;;; init tables for the vectors
 VectorInitTable:

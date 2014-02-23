@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: reset.asm,v 1.23 2009-05-03 20:58:13 thor Exp $		**
+;;; ** $Id: reset.asm,v 1.39 2014/01/13 06:09:45 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 Startup and Reset handling			**
 ;;; **********************************************************************
@@ -56,6 +56,8 @@ ylp:
 	;; check whether a cart has been inserted
 	sei			; no interrupting now
 	cld			; to be on the safe side
+	lda #0
+	sta NMIEnable		; really no interrupting now
 	lda Trigger3
 	cmp Trigger3Shadow	; did this change?
 	bne ResetCold		; better do a coldstart
@@ -69,7 +71,7 @@ nocart:
 	lda ColdStartFlag	; enforced a coldstart?
 	bne ResetCold
 	lda #$ff		; we are coldstarting
-	bne Init		; start up
+	.byte $2c		; skip the next two bytes
 .endproc	
 ;;; *** ResetCold
 ;;; *** The os controlled coldstart vector
@@ -85,18 +87,18 @@ nocart:
 	cld			; binary mode
 	ldx #$ff
 	txs			; initialize the stack
-	jsr CartChipInit	; startup immediate cartrigdes, chips and basic cart
+	jsr RunBootCart		; run diagnostic cartridge
+	jsr CustomChipInit	; initialize custom chips
+	jsr BasicInit		; switch on basic RAM
+	jsr FindRAMTop
 	;; now perform the real ram test
 	;; actually, this test is idiotic.
 	;; A faulty RAM will loose its contents
 	;; or will flip bits randomly, but will most likely
 	;; hold its contents for one cycle on the same
 	;; address....
-	ldx #1
-	stx RamTestFlag		; set the ram still to fine
 	lda WarmStartFlag	; warmstart?
 	bne skiptest		; if so, do not check again (do not risk worthful data)
-	dex
 	sta RamTest		; reset the ram test pointer
 	sta RamTest+1		; ditto
 	ldy #WarmStartFlag	; do not modify above. Everything below must work.
@@ -115,10 +117,6 @@ ramtest:			; here:	 coldstart
 	lda RamTest+1
 	cmp RamChkPtr+1		; until all detected pages have been handled
 	bcc ramtest
-	lda #<ByeVector
-	sta DosVector
-	lda #>ByeVector		; call the bye vector if there is no dos
-	sta DosVector+1
 	lda #$ff
 	sta ColdStartFlag	; if we reset now, make this a coldstart
 	;; test the ROM checksum here
@@ -127,7 +125,19 @@ ramtest:			; here:	 coldstart
 	bne romfailure
 	jsr RomSumHiVector	; compute the high memory checksum
 	bne romfailure
-	beq init
+	lda #<ByeVector
+	sta DosVector
+	lda #>ByeVector		; call the bye vector if there is no dos
+	sta DosVector+1
+	lda #<RtsVector
+	sta DosInit
+	lda #>RtsVector
+	sta DosInit+1
+	lda #<LaunchDupVector	; where we get run to launch the DUP
+	sta DupVector
+	lda #>LaunchDupVector
+	sta DupVector+1
+	bne init
 ramfailure:			
 	;; jumped here if the ram test failed
 	lda #$34
@@ -140,12 +150,6 @@ romfailure:
 	;;
 	;; here handling for the warmstart
 skiptest:
-	lda #$00
-	ldx ScreenFailure	; did openscreen fail?
-	beq screenishere
-	sta AppMemHi		; reset the application himem, we need it for the init screen
-	sta AppMemHi+1		; ditto
-screenishere:
 	lda #$00
 	tax			; initialize the Os vectors
 initvecs:
@@ -171,22 +175,10 @@ init:
 	jsr MapSelfTest		; again, this is in the selftest area
 	jsr VectorInitVector
 	jsr HideSelfTest
-
-	;; now launch all handlers
-	jsr EditorTable+$c	; init E:
-	jsr ScreenTable+$c	; init S:
-	jsr KeyboardTable+$c	; init K:
-	jsr PrinterTable+$c	; init P:
-	jsr TapeTable+$c	; init C:
-	;; misc system resources
-	jsr CIOInitVector	; init CIO
-	jsr SIOInitVector	; init SIO
-	jsr NMIInitVector	; init NMIs
-	jsr DiskInitVector	; init resident disk handler	
 	;; check wether the fms wants to be run
 	lda FmsBootFlag
 	bpl nofms
-	jsr FmsInit
+	jsr FmsInitVector
 nofms:	
 	cli			; start interrupt management
 
@@ -225,9 +217,13 @@ nocart:
 	jsr CIOVector		; run thru CIO
 	bpl screenisopen	;
 	;; ooops, editor did not open?
-	lda ScreenFailure	; did this happen for the second time?
-	bne totalfailure	; outch!
-	inc ScreenFailure	; keep noted and initialize RAMTop next time
+	lda AppMemHi+1		; did this probably happen due to out of memory reasons?
+	beq totalfailure	; outch!
+	stx AppMemHi		; reset the application himem, we need it for the init screen
+	stx AppMemHi+1		; ditto
+	stx ColdStartFlag
+	lda #$01
+	jsr InitVectors		; erase program area.
 	jmp ResetWarm		; run thru the warmstart again
 totalfailure:
 	lda #$00
@@ -244,7 +240,7 @@ screenisopen:
 wclock:	
 	cmp Clock
 	beq wclock		; wait for the VBI to appear and to load the custom chips
-	
+
 	jsr BootTape		; boot from tape if required
 	lda CartFlag		; do we have a cart?
 	beq performinit
@@ -261,6 +257,8 @@ noinit:
 	bcc nocold
 	;; signal that we need the cart to re-initialize
 	stx WarmStartFlag
+	and #$20		; about to run DUP? If so, the clear cart flag persists
+	bne nocold
 	dec FmsBootFlag		; reset this bit again
 nocold:	
 	stx ColdStartFlag	; booting is now over
@@ -326,7 +324,7 @@ fmsinit:
 	jsr InitVectors
 	
 
-	jsr FmsInit		; initialize the fms
+	jsr FmsInitVector	; initialize the fms
 initflag:	
 	lda #$01
 	ora BootFlag
@@ -343,7 +341,7 @@ diskboot:
 nodisk:		
 	lda #$81		; launch FMS on reset, do not try to bootstrap since there is no disk
 	jsr InitVectors		; init vectors
-	jsr FmsInit		; init FMS. Won't boot off since there's no drive
+	jsr FmsInitVector	; init FMS. Won't boot off since there's no drive
 	jsr Init850Vector	; init 850 manually now
 	bcc initflag		; if fine, ensure that the handler is run by setting the bootflag
 	rts
@@ -408,19 +406,13 @@ done:
 	ora BootFlag
 	sta BootFlag
 	rts
-InitVectors:	
+.endproc
+;;; *** InitVectors
+;;; *** set the Dos boot flags in A, initialize the DOS vectors
+	.global InitVectors
+.proc	InitVectors
 	ora FmsBootFlag		; indicate that we want to get run from now on for bootstraping
 	sta FmsBootFlag
-	
-	lda #<LaunchDosVector	; where we get called on the DosInit vector
-	sta DosVector
-	lda #>LaunchDosVector
-	sta DosVector+1
-
-	lda #<DosInitRun
-	sta DosInit
-	lda #>DosInitRun
-	sta DosInit+1
 	rts
 .endproc
 ;;; *** DosInitRun
@@ -430,7 +422,9 @@ InitVectors:
 	bit FmsBootFlag		; run the resident dup menu?
 	bvs rundup
 	rts
-rundup:	
+rundup:
+	lda #0
+	sta ColdStartFlag
 	jmp (DupVector)
 .endproc
 ;;; *** LaunchDos
@@ -440,9 +434,8 @@ rundup:
 .proc	LaunchDos
 	lda #0
 	sta ColdStartFlag
-	lda FmsBootFlag		; set the "rundup" flag
-	ora #$40
-	sta FmsBootFlag
+	lda #$40
+	jsr InitVectors
 	ldx #$ff
 cps:
 	cpx KeyStat
@@ -503,9 +496,9 @@ chksum:
 	sta CartSum		; store the proper sum, do not change the flags
 	rts
 .endproc
-;;; *** CartChipInit
+;;; *** RunBootCart
 ;;; *** Immediate cartridge initalization and chip reset
-.proc	CartChipInit
+.proc	RunBootCart
 	lda Trigger3		; check whether we have a cart inserted
 	ror a
 	bcc nocart		; nothing
@@ -515,8 +508,11 @@ chksum:
 	bpl nocart
 	jmp (CartInit)
 nocart:				; not a boot cartridge
-	jsr CustomChipInit	; initalize the custom chips
-	;; now handle the basic cart
+	rts
+.endproc	
+;;; *** BasicInit
+;;; *** Turn the basic ROM on or off.
+.proc	BasicInit
 	lda WarmStartFlag	; do we have a warmstart?
 	beq coldstart
 	lda BasicDisabled	; is the basic disabled?
@@ -531,7 +527,11 @@ enablebasic:			; otherwise, enable the basic cart
 	and #$fd
 	sta PIAPortB
 leavedisabled:
-	;; start the RAM test from $2800 and up
+	rts
+.endproc	
+;;; *** FindRAMTop
+;;; *** Find the last populated RAM test from $2800 up
+.proc	FindRAMTop
 	lda #<$2800
 	sta RamChkPtr
 	tay			; also reset the Y register
@@ -555,6 +555,7 @@ ramend:
 	;; here $6 is the ramtop page (the first non-valid page)
 	rts
 .endproc
+	
 ;;; *** CustomChipInit
 ;;; *** initialize the custom chips here
 .proc	CustomChipInit

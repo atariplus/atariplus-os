@@ -2,13 +2,12 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: reset.i,v 1.7 2008-12-29 23:37:23 thor Exp $		**
+;;; ** $Id: reset.i,v 1.13 2014/01/07 12:17:35 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 Startup and Reset handling			**
 ;;; **********************************************************************
 
 ZeroBase		=	$0	; base address of the reset
-RamTestFlag		=	$1	; cleared on a ram failure
 CasInit			=	$2	; tape boot init vector
 RamTest			=	$4	; used during reset for the long ram test
 BootPtr			=	$4	; also used during booting
@@ -22,9 +21,9 @@ AppMemHi		=	$e	; highest address the application reserved
 PalNTSCShadow		=	$62	; sort of shadow register for GTIA PalNTSC
 ;; the following are (illegally) used to checksum the ROM. No matter,
 ;; all this gets cleared afterwards
-RomSum			=	$8b	; checksum so far
-RomPtr			=	$9e	; byte that gets checksummed
-RomRegionEnd		=	$a0	; end of the region to be checksummed
+RomSum			=	$04	; checksum so far
+RomPtr			=	$0a	; byte that gets checksummed
+RomRegionEnd		=	$0c	; end of the region to be checksummed
 ;;
 DiskBootFlag		=	$240	; meaning and value is zero, but must be here
 DiskBootSectors		=	$241	; number of sectors to boot
@@ -36,10 +35,13 @@ MemLo			=	$2e7	; lowest used address
 InitMagic0		=	$33d	; must be $5c to accept a reset as warm
 InitMagic1		=	$33e	; must be $93
 InitMagic2		=	$33f	; must be $25
-TapeBootFlag		=	$3e9	; set if booting from tape requested
 CartSum			=	$3eb	; cart checksum is here
 ScreenFailure		=	$3ec	; set if opening the screen failed
 FmsBootFlag		=	$3f5	; now misused for ROM based FMS
+				 ; bit 7: if set initialize FMS on reset
+				 ; bit 6: if set run DUP after reset
+				 ; bit 4: do not allocate memory for buffers (behind os?)
+				 ; bit 0: if set reset MemLo, erase program area
 DupVector		=	$3f6	; run to launch the dup if FmsBootFlags & 0x40 is set
 BasicDisabled		=	$3f8	; if NE, then basic is disabled
 Trigger3Shadow		=	$3fa	; GTIA trigger shadow register (cartridge flags)
@@ -62,4 +64,5 @@ CustomRamStart		=	$0700	; custom applications may start here
 	.global ResetWarm
 	.global ResetCold
 	.global	LaunchDos
-
+	.global	InitVectors
+	.global DosInitRun

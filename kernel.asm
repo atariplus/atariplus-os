@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: kernel.asm,v 1.5 2008-09-24 13:59:48 thor Exp $		**
+;;; ** $Id: kernel.asm,v 1.9 2013/06/02 20:41:05 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 Kernel definitions: The jump vectors of the Os	**
 ;;; **********************************************************************
@@ -18,6 +18,7 @@
 	.include "nmi.i"
 	.include "misc.i"
 	.include "reset.i"
+	.include "fms.i"
 	.include "dup.i"
 
 	.segment  "Kernel"
@@ -95,4 +96,5 @@
 	jmp LaunchDos
 	.word DupBuffer		; for OS/A compatibility
 	.byte 0
-	
+	jmp FmsInit
+	jmp LaunchDup

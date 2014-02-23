@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: mathpack.asm,v 1.22 2008-11-24 21:22:55 thor Exp $		**
+;;; ** $Id: mathpack.asm,v 1.25 2013/06/02 20:41:05 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 math pack functions				**
 ;;; **********************************************************************
@@ -38,7 +38,7 @@
 	jsr ZeroRgs		; erase the parsing flags
 	dec digrt		; no decimal point yet
 	ldx #fr0
-	ldy #12			; complete fr0,fr0ext part
+	ldy #6+2		; complete fr0,fr0ext part
 	jsr ZeroRgs
 	ldy cix
 	Skip2
@@ -254,33 +254,29 @@ markend:
 	rts
 .endproc
 ;;; *** Utility functions for multiplication
-;;; *** AddTimesFr1:	compute fr0+y*fr1->fr0
-.proc	AddTimesFr1	
+;;; *** AddTimesFrX:	compute fr0+y*frX->fr0
+.proc	AddTimesFrX	
 	tay
 	beq done
-add:	ldx #5
-	clc
-loop:	lda fr0,x
-	adc fr1,x
-	sta fr0,x
-	dex
-	bpl loop
-	dey
-	bne add
-done:	
-	rts
-.endproc
-;;; *** AddTimesFr2:	compute fr0+y*fr2->fr0
-.proc	AddTimesFr2
-	tay
-	beq done
-add:	ldx #5
-	clc
-loop:	lda fr0,x
-	adc fr2,x
-	sta fr0,x
-	dex
-	bpl loop
+add:	clc
+	lda fr0+5
+	adc 5,x
+	sta fr0+5
+	lda fr0+4
+	adc 4,x
+	sta fr0+4
+	lda fr0+3
+	adc 3,x
+	sta fr0+3
+	lda fr0+2
+	adc 2,x
+	sta fr0+2
+	lda fr0+1
+	adc 1,x
+	sta fr0+1
+	lda fr0
+	adc 0,x
+	sta fr0
 	dey
 	bne add
 done:	
@@ -403,7 +399,7 @@ error:
 	eor #$80		; yes, really that easy.
 	sta fr0
 	rts
-.endproc
+.endproc	
 ;;; *** ZeroFr0 (also known as ZFR0)	must go to da44
 ;;; *** Clear the floating point register FR0
 	PlaceAt $da44
@@ -545,13 +541,15 @@ nocarry:
 mulloop:
 	lda fr0ext+5		; get lowest digit
 	and #$0f
-	jsr AddTimesFr1
+	ldx #fr1
+	jsr AddTimesFrX
 	lda fr0ext+5
 	lsr a
 	lsr a
 	lsr a
 	lsr a			; get tenth-digit
-	jsr AddTimesFr2
+	ldx #fr2
+	jsr AddTimesFrX
 	jsr Fr0ExtShift		; get the next digit into Fr0Ext, move result to free digit
 	dec ztemp1		; until all digits done
 	bne mulloop
@@ -960,6 +958,7 @@ shlp:	lda #$00
 .proc	NoCarry
 	rts
 .endproc
+
 ;;; *** EvalPoly	Must go to dd40
 ;;; *** Evaluate the polynomial with coefficients at (x,y) (lo,hi)
 ;;; *** with their number in A, at the location in fr0.

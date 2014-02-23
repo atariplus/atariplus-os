@@ -2,7 +2,7 @@
 ** Compute the relocation offsets of two 650 binary files that differ by $0102
 ** in their start address.
 ** (c) 2003 THOR-Software, private use only.
-** $Id: reloc.c,v 1.2 2003/05/14 20:52:10 thor Exp $
+** $Id: reloc.c,v 1.5 2013-04-07 21:00:41 thor Exp $
 **
 */
 
@@ -59,10 +59,12 @@ unsigned char *readfile(FILE *in,int itssize)
 /*
 ** create the relocation data of the two files by analying the
 ** difference of the two files. This requires that only word
-** references are here.
+** references are here or the data can only be relocated to
+** entire pages (onepage set).
 ** Returns non-zero for success, prints an error and returns 0.
 */
-int createrelocation(const unsigned char *in1,const unsigned char *in2,char *out,int size)
+int createrelocation(const unsigned char *in1,const unsigned char *in2,char *out,
+		     int size,int onepage)
 {
   int i;
   int d1,d2;
@@ -82,15 +84,29 @@ int createrelocation(const unsigned char *in1,const unsigned char *in2,char *out
 	fprintf(stderr,"invalid relocation data, last byte differs.\n");
 	return 0;
       }
-      d1 = in1[0] | (((int)in1[1]) << 8);
-      d2 = in2[0] | (((int)in2[1]) << 8);
-      /*
-      ** the difference should be $0102
-      */
-      if (d2 - d1 != 0x0102) {
-	fprintf(stderr,"the address differences of the two files 0x%x is not 0x0102 as requested,\n"
-		"or the file is not relocatable at offset 0x%x\n",d2-d1,i);
-	return 0;
+      //
+      if (onepage) {
+	d1 = in1[0];
+	d2 = in2[0];
+
+	if (d2 - d1 != 0x01) {
+	  fprintf(stderr,"the address differences of the two files 0x%x is not 0x01 "
+		  "as requested,\n"
+		  "or the file is not relocatable at offset 0x%x\n",d2-d1,i);
+	  return 0;
+	}
+      } else {
+	d1 = in1[0] | (((int)in1[1]) << 8);
+	d2 = in2[0] | (((int)in2[1]) << 8);
+	/*
+	** the difference should be $0102
+	*/
+	if (d2 - d1 != 0x0102) {
+	  fprintf(stderr,"the address differences of the two files 0x%x is not 0x0102 "
+		  "as requested,\n"
+		  "or the file is not relocatable at offset 0x%x\n",d2-d1,i);
+	  return 0;
+	}
       }
       *out = 1;
       /*
@@ -104,13 +120,9 @@ int createrelocation(const unsigned char *in1,const unsigned char *in2,char *out
   return 1;
 }
 
-/*
-** encode the relocation information: One bit
-** for each byte.
-*/
 #if BETTER_ENCODING==0
 #if BIT_ENCODING==0
-int writerelocation(FILE *of,const unsigned char *out,int size)
+int writerelocation(FILE *of,const unsigned char *out,int size,int onepage)
 {
   int i;
   int last = 0;
@@ -118,14 +130,17 @@ int writerelocation(FILE *of,const unsigned char *out,int size)
   /*
    * first put the size, the boot code needs it here
    */
-  fputc(size & 0xff,of);
-  fputc(size >> 8,of);
+  if (!onepage) {
+    fputc(size & 0xff,of);
+    fputc(size >> 8,of);
+  }
 
   for(i=0;i<size;i++) {
     if (*out) {
       int encode = i - last;
       if (encode > 255) {
-	fprintf(stderr,"offsets too far separated\n");
+	fprintf(stderr,"offsets at 0x%04x too far separated, %d instead of at most 255\n",
+		i,encode);
 	return 0;
       }
       fputc(encode & 0xff,of);
@@ -133,11 +148,13 @@ int writerelocation(FILE *of,const unsigned char *out,int size)
     }
     out++;
   }
-  fputc(0,of);
+  if (!onepage) {
+    fputc(0,of);
+  }
   return 1;
 }
 #else
-int writerelocation(FILE *of,const unsigned char *out,int size)
+int writerelocation(FILE *of,const unsigned char *out,int size,int onepage)
 {
   unsigned char bit = 0;
   int bitcnt = 0;
@@ -185,7 +202,7 @@ void flushbits(FILE *of)
   }
 }
 
-int writerelocation(FILE *of,const unsigned char *out,int size)
+int writerelocation(FILE *of,const unsigned char *out,int size,int onepage)
 {
   int i;
   int cntr = 0;
@@ -228,9 +245,16 @@ int main(int argc,char **argv)
   FILE *otf = NULL;
   int size1,size2;
   int rc = 10;
+  int onepage = 0;
+
+  if (argc > 2 && !strcmp(argv[1],"-o")) {
+    onepage = 1;
+    argc--;
+    argv++;
+  }
 
   if (argc != 4) {
-    printf("Usage: %s infile1 infile2 outfile\n",argv[0]);
+    printf("Usage: [-o] %s infile1 infile2 outfile\n",argv[0]);
     return 5;
   }
 
@@ -247,9 +271,9 @@ int main(int argc,char **argv)
 	      if (buf2) {
 		out = malloc(size1);
 		if (out) {
-		  if (createrelocation(buf1,buf2,out,size1)) {
+		  if (createrelocation(buf1,buf2,out,size1,onepage)) {
 		    if (otf = fopen(argv[3],"wb")) {
-		      if (writerelocation(otf,out,size1)) {
+		      if (writerelocation(otf,out,size1,onepage)) {
 			rc = 0;
 			printf("done\n");
 		      }

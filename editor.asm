@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: editor.asm,v 1.26 2008-09-23 19:35:24 thor Exp $		**
+;;; ** $Id: editor.asm,v 1.28 2014/01/01 18:22:16 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 Implementation of the E: handler		**
 ;;; **********************************************************************
@@ -986,8 +986,8 @@ anticlp:
 	bcs anticlp		; wait until this VBI is over, too
 	ldx #$0d
 	lda WindowHeight	; get amount of lines to scroll
-	cmp #4			; small text window?
-	bne tallwindow
+	cmp #24			; small text window?
+	bcs tallwindow
 	ldx #$70
 tallwindow:
 anticlp2:

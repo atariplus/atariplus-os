@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: errors.i,v 1.16 2003/05/14 09:39:27 thor Exp $		**
+;;; ** $Id: errors.i,v 1.17 2013-03-08 22:11:16 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 Os Error codes					**
 ;;; **********************************************************************
@@ -47,3 +47,4 @@ FileNotFound	=	$aa	; as said, not present
 NoBinaryFile	=	$af	; requested file is not a binary load file
 BadLinkage	=	$b0	; detected a link to sector 0
 InvalidMode	=	$b1	; invalid/unsupported open mode
+NotADosDisk	=	$b2	; is not a Dos 2.x compatible disk

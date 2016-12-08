@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: pokey.i,v 1.7 2008-11-24 21:22:55 thor Exp $		**
+;;; ** $Id: pokey.i,v 1.8 2015/08/15 14:47:43 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 Pokey registers				**
 ;;; **********************************************************************

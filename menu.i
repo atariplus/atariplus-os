@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: menu.i,v 1.4 2013-04-07 21:00:41 thor Exp $			**
+;;; ** $Id: menu.i,v 1.5 2015/08/15 14:47:43 thor Exp $			**
 ;;; **									**
 ;;; ** In this module:	 Menu driven DUP for Dos 2.++			**
 ;;; ** Derived from version 1.12 (19-Jan-1990)				**

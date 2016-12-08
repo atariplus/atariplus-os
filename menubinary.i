@@ -2,7 +2,7 @@
 ;;; ** Thor Os                                                          **
 ;;; ** A free operating system for the Atari 8 Bit series               **
 ;;; ** (c) 2003 THOR Software, Thomas Richter                           **
-;;; ** $Id: menubinary.i,v 1.2 2013-05-11 19:01:59 thor Exp $           **
+;;; ** $Id: menubinary.i,v 1.3 2015/08/15 14:47:43 thor Exp $           **
 ;;; **                                                                  **
 ;;; ** In this module:   Binary load,save 				**
 ;;; **********************************************************************

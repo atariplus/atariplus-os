@@ -2,7 +2,7 @@
 ;;; ** THOR Os                                                          **
 ;;; ** A free operating system for the Atari 8 Bit series               **
 ;;; ** (c) 2003 THOR Software, Thomas Richter                           **
-;;; ** $Id: diskio6init.i,v 1.1 2013-04-05 17:15:52 thor Exp $          **
+;;; ** $Id: diskio6init.i,v 1.2 2015/08/15 14:47:42 thor Exp $          **
 ;;; **                                                                  **
 ;;; ** In this module:   DiskIO helper 					**
 ;;; **********************************************************************

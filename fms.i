@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: fms.i,v 1.27 2013-04-07 17:18:23 thor Exp $			**
+;;; ** $Id: fms.i,v 1.28 2015/08/15 14:47:42 thor Exp $			**
 ;;; **									**
 ;;; ** In this module:	 Implementation of the D: handler		**
 ;;; **********************************************************************

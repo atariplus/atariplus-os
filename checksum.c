@@ -1,7 +1,7 @@
 /*
 ** checksum.c:
 ** recompute the os rom checksum of the input file
-** $Id: checksum.c,v 1.1 2003-04-03 16:44:37 thor Exp $
+** $Id: checksum.c,v 1.1 2003/04/03 16:44:37 thor Exp $
 */
 
 #include <stdio.h>

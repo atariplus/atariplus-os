@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: editor.asm,v 1.28 2014/01/01 18:22:16 thor Exp $		**
+;;; ** $Id: editor.asm,v 1.30 2016/12/07 21:26:44 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 Implementation of the E: handler		**
 ;;; **********************************************************************
@@ -17,7 +17,14 @@
 	.include "antic.i"
         
         .segment  "OsHi"
-	
+
+;;; *** Skip two bytes (by a dummy BIT)
+.macro	Skip2
+	.byte $2c
+.endmacro
+.macro	Skip1
+	.byte $24
+.endmacro
 ;;; *** EditorOpen
 ;;; *** This is the open vector of the editor device
 	.global EditorOpen
@@ -34,6 +41,7 @@
 	sta WindowHeight	
 	lda #0
 	sta SwapFlag		; text data not swapped
+	jsr ResetCursorPtr	; indicate that there is no cursor to remove currently
 	jsr EditorScreenInit	; initalize editor variables
 	jsr RenderCursor	; display the cursor
 	ldy #$01
@@ -48,8 +56,6 @@ error:
 .proc	EditorScreenInit
 	lda #$00
 	sta GfxMode		; set the gfx mode for the text window
-	sta CursorPtr
-	sta CursorPtr+1		; indicate that there is no cursor to remove currently
 	sta CursorInhibit	; make the cursor visible	
 	sta BufferCnt		; indicate that the buffer is empty
 	
@@ -657,8 +663,6 @@ moveuploop:
 ;;; *** if it is not available.
 	.global CheckEditorCursor
 .proc	CheckEditorCursor
-	lda SwapFlag		; are we in the graphics window anyhow?
-	bmi havewindow
 	lda GfxMode		; check whether we have any editor-friendly mode (namely, zero)
 	beq havewindow
 	;; here not. Reopen the editor (yuck!)
@@ -739,9 +743,17 @@ nowindow:
 	ldy #0
 	lda ChrUnderCursor	; get the old character under the cursor
 	sta (CursorPtr),y	; store it
-	sty CursorPtr
-	sty CursorPtr+1
+	Skip2
 nocursor:
+	rts
+.endproc
+;;; *** ResetCursorPtr
+;;; *** Set the cursor Ptr to NULL
+	.global ResetCursorPtr
+.proc	ResetCursorPtr
+	lda #0
+	sta CursorPtr
+	sta CursorPtr+1
 	rts
 .endproc
 ;;; *** RenderCursor

@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: antic.i,v 1.5 2003-04-02 19:37:14 thor Exp $		**
+;;; ** $Id: antic.i,v 1.6 2015/08/15 14:47:42 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 Antic registers				**
 ;;; **********************************************************************

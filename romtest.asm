@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: romtest.asm,v 1.6 2013/06/02 20:41:07 thor Exp $		**
+;;; ** $Id: romtest.asm,v 1.7 2014/03/09 18:48:17 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 ROM checksum computation			**
 ;;; **********************************************************************
@@ -15,6 +15,7 @@
 	.include  "cio.i"
 	.include  "pia.i"
 	.include  "gtia.i"
+	.include  "sio.i"
 	
 	.segment  "RomTest"
 

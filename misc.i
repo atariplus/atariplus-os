@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: misc.i,v 1.12 2014/01/04 18:55:12 thor Exp $		**
+;;; ** $Id: misc.i,v 1.14 2014/03/14 16:02:22 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 Miscellaneous helper functions in the kernel	**
 ;;; **********************************************************************
@@ -33,3 +33,10 @@ BootSpace		=	$500		; 850 boot requires this
 	.global HideSelfTest		; Make selftest area invisible
 	.global FileTmpOffset		; Offset into temporaries in dir buffer, for FMS
 	.global	LaunchDup		; Entry point to the DUP
+	.global ComputeTimeout
+	.global SetSerialMode
+	.global	AbleIRQ
+	.global InitForSend
+	.global InitForReceive
+	.global	AudioInit
+	.global	AudioCleanup

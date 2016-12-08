@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: nmi.i,v 1.8 2013-03-09 12:39:31 thor Exp $			**
+;;; ** $Id: nmi.i,v 1.9 2015/08/15 14:47:43 thor Exp $			**
 ;;; **									**
 ;;; ** In this module:	 Support for NMI routines of all kinds		**
 ;;; **********************************************************************

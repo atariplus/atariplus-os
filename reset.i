@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: reset.i,v 1.13 2014/01/07 12:17:35 thor Exp $		**
+;;; ** $Id: reset.i,v 1.14 2015/05/09 19:51:28 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 Startup and Reset handling			**
 ;;; **********************************************************************
@@ -47,7 +47,7 @@ BasicDisabled		=	$3f8	; if NE, then basic is disabled
 Trigger3Shadow		=	$3fa	; GTIA trigger shadow register (cartridge flags)
 BootBuffer		=	$400	; boot sector gets loaded to here
 
-CartSumRegion		=	$bff0	; start of the cart checksum region
+CartSumRegion		=	$bf00	; start of the cart checksum region
 CartRun			=	$bffa	; the cart run vector
 CartTest		=	$bffc	; must be zero for carts
 CartType		=	$bffd	; contains the cart flags

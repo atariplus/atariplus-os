@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: sio.asm,v 1.8 2013/06/02 20:41:07 thor Exp $		**
+;;; ** $Id: sio.asm,v 1.16 2014/03/15 00:39:16 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 Serial IO interface				**
 ;;; **********************************************************************
@@ -14,8 +14,17 @@
 	.include "irq.i"
 	.include "errors.i"
 	.include "kernel.i"
+	.include "misc.i"
 	
 	.segment  "OsHi"
+	
+;;; *** Skip two bytes (by a dummy BIT)
+.macro	Skip2
+	.byte $2c
+.endmacro
+.macro	Skip1
+	.byte $24
+.endmacro
 	
 ;;; *** SIOInit
 ;;; *** Setup the serial IO internface
@@ -42,6 +51,7 @@
 	stx SIOStackPtr
 	lda #$01
 	sta SIORetry		; setup retry counter	
+	sta SIOStatusTmp	; reset the error store
 	clc
 	lda SIODeviceId
 	adc SIODeviceUnit
@@ -64,47 +74,39 @@ restart:
 	lda #$34
 	sta PIAPortBCtrl	; lower the COMMAND line
 	jsr SendBytes		; send this over the line
-	beq errorcmd		; timeout?
-	lda SIOError		; an error on the serial bus?
-	beq framefine
-errorcmd:
+	bpl framefine		; transmitted ok
 	dec SIOCmdRetry		; retry the serial command, did not work
 	bpl restart
-	bmi sioerror
+	bmi sioerror		; retry completely.
 framefine:	
 ;;; here: check whether we need to write out the data frame
 	bit SIOStatus
 	bpl nosentdata
-	lda #$0d
-	sta SIOCmdRetry		; re-initialize the error counter
 	jsr InitBuffer		; setup the buffer pointers
-	jsr SendBytes		; transfer the data
-	beq sioerror		; return on error
+	jsr SendBytes		; transfer the data, already generates an acknowledge
+	bpl nosentdata		; done if no error
+	cpy #TimeoutError
+	beq sioerror		; on timeout, do not try again
+	sty SIOStatusTmp	; keep the error code here.
+;;; here: receive the result byte of the write or read operation. Even if the write data phase aborted.
 nosentdata:
-	lda #$00
-	sta SIOError		; clear the error code again
 	jsr ComputeTimeout	; compute the timeout for the receiving data
 	jsr ReceiveResult	; check the result code of the device
-	beq xmiterror		; branch if failure:	timeout!
-	
+	bpl fine
+	cpy #TimeoutError	; on timeout, do not try to receive the data frame
+	beq sioerror		; but abort immediately
+	sty SIOStatusTmp	; keep the error 
+fine:	
 	bit SIOStatus		; now check whether this command expects data in return
-	bvs receivedata
-	lda SIOError		; if not, check for errors now
-	bne sioerror		; return on error now
-	beq exit		; otherwise, return without error
-;;; here: receive input data
-receivedata:			
+	bvc check		; if aborting, might still be that there is a former error
+;;; here: receive input data: Note this data is received even if the device signalled an error
 	jsr InitBuffer		; setup the buffer again
 	jsr ReceiveBytes	; wait for the bytes for arrive
-	ldy SerialStatus	; get the status code
-	lda SIOError		; check for the error code again
-	beq norecerror
-xmiterror:
-	ldy SIOStatusTmp	; retain the old error code on error
-	sty SerialStatus
-norecerror:
-	cpy #$01		; if fine, exit
-	beq exit
+	bmi sioerror		; on error, surely try again
+check:				; last phase was ok, but probably not the phase before
+	ldy SIOStatusTmp	; but could be that the data acknowledge phase created an error
+	sty SerialStatus	; retain that
+	bpl exit		; if that is also ok, return
 sioerror:			; here:	 SIO on error
 	dec SIORetry		; retry all of it?
 	bpl fullretry		; redo from start if we have some tries left
@@ -151,9 +153,6 @@ exit:
 deyloop1:	
 	dey
 	bne deyloop1
-deyloop2:
-	dey
-	bne deyloop2
 	jsr TransmitBytes
 	ldy #<2
 	ldx #>2			; VBI timeout count
@@ -173,62 +172,33 @@ deyloop2:
 	lda #$01
 	sta SIOTimerFlag
 	jsr SetIRQVector	; install the error handler for the serial timeout
-	ldy #$00
-	sty SIOError		; clear the error code
-	dey
+	ldy #$ff
 	sty SerialNoChkSum	; do not expect a checksum for the single byte
 	ldy #<SIOAck
 	lda #>SIOAck
 	ldx #1
 	jsr InitShortBuffer	; expect a single byte at SIOAck
 	jsr ReceiveBytes	; and receive what we get
-	ldy #$ff		; status:	OK
-	lda SerialStatus
-	cmp #$01		; is it fine?
-	bne recerror		; if not, check for error
-	ldx SIOAck		; get device result code
-	cpx #'A'		; command acknowledged?
+	bmi exit		; on error, set directly
+	lda SIOAck		; get device result code
+	cmp #'A'		; command acknowledged?
 	beq exit
-	cpx #'C'		; command completed
+	cmp #'C'		; command completed
 	beq exit
-	lda #DeviceNak		; preload error code
-	cpx #'E'		; device error?
-	beq setdeverror
-	lda #DeviceError	; return unexpected error code error
-setdeverror:
-	sta SerialStatus	; keep the status code here
-recerror:
-	cmp #TimeoutError	; is it a timeout error?
-	beq handletimeout
-	dec SIOError		; otherwise, no timeout: set real error code now
-	bne exit
-handletimeout:
-	ldy #$00		; handle a timeout by returning Z set
-exit:
-	sta SIOStatusTmp	; keep the error code here for latter reference
-	tya			; set status flags
+	cmp #'E'		; device error?
+	beq setnak
+	ldy #DeviceError	; return unexpected error code error
+	Skip2
+setnak:
+	ldy #DeviceNak
+	sty SerialStatus	; keep the status code here
+exit:	
 	rts
 TimeOut:
 	lda #$00
 	sta SIOTimerFlag	; clear the timer flag. What a waste for this timer!	
 	lda #TimeoutError
 	sta SerialStatus	; setup the error code then
-	rts
-.endproc
-;;; ComputeTimeout
-;;; Compute the timeout value for the operation
-;;; with Lo->Y, Hi->X
-.proc	ComputeTimeout
-	lda SIOTimeout
-	ror a
-	ror a			; /4 * 256 = *64
-	tay
-	and #$3f		; -> Hi
-	tax
-	tya
-	ror a
-	and #$c0		; remainder->Lo
-	tay
 	rts
 .endproc
 ;;; *** TransmitBytes
@@ -248,18 +218,7 @@ waitloop:			; the remaining stuff is done by the interrupt
 	beq Abort
 	lda SerialSentDone	; serial write ready?
 	beq waitloop
-	;; runs into the following	(Audio register cleanup)
-.endproc
-;;; Cleanup
-;;; Clean the Pokey and serial registers after a SIO operation
-.proc	Cleanup
-	lda #$00
-	jsr AbleIRQ		; disable all serial interrupts
-	lda #$00
-	sta AudCtrl0
-	sta AudCtrl1
-	sta AudCtrl2
-	sta AudCtrl3		; clear pokey audio:	 Hmm, less would be possible
+	jsr AudioCleanup
 	rts
 .endproc
 ;;; *** ReceiveBytes
@@ -282,7 +241,8 @@ waitloop:
 	beq exit		; timeout error has been set then already
 	lda SerialXferDone	; transfer completed?
 	beq waitloop		; if not, continue looping
-exit:	
+exit:
+	ldy SerialStatus	; return the status and set the flags
 	rts
 .endproc
 ;;; *** Abort
@@ -298,80 +258,142 @@ exit:
 ;;; Clean the Pokey and serial registers after a SIO operation
 ;;; Y is the error code, and bail out of SIO
 .proc	Exit
-	jsr Cleanup
+	lda #0
 	sta CriticIO		; clear the IO critical flag (Y still set, A still set)
+	jsr AudioCleanup
 	sty SIOStatus		; set the SIO Status	
 	ldx SIOStackPtr		; reload stack pointer
 	txs			; and set it	
 	lda #$3c
-	sta PIAPortACtrl	; reset PIA ports
 	sta PIAPortBCtrl	; ditto
 	cli			; release interrupt blocking
 	cpy #$00		; set CPU flags
 	rts
 .endproc
-;;; InitForSend
-;;; Setup pokey such that we can send bytes
-;;; This is also available as a kernel vector
-	.global InitForSend
-.proc	InitForSend
-	jsr AudioInit
-	lda #$07
-	and SkStatShadow
-	ora #$20
-	sta SkStatShadow
-	sta SkStat
-	sta SkReset		; reset pokey, setup serial transfer mode
-	lda #$10		; serout IRQ on
-	bne AbleIRQ		; for compatibility, required by misc. Not required by SIO. Jumps always
-.endproc
-;;; InitForReceive
-;;; Setup pokey such that we can receive bytes
-.proc	InitForReceive
-	jsr AudioInit
-	lda #$07
-	and SkStatShadow
-	ora #$10
-	sta SkStatShadow
-	sta SkStat
-	sta SkReset		; reset pokey, setup serial transfer mode
-	lda #$20		; serin IRQ on
-	;; runs into the following
-.endproc
-;;; AbleIRQ
-;;; Enable the pokey IRQ given in A
-	.global	AbleIRQ
-.proc	AbleIRQ
-	pha
-	lda #$c7
-	and IRQStatShadow	; first disable all serial IRQ
-	sta IRQStatShadow	; keep
+;;; *** SerInIRQ
+;;; *** The os supplied default serial input handler
+;;; *** called on a serial shift register full
+	.global SerInIRQ
+.proc	SerInIRQ
+	tya
+	pha			; keep Y register
+	lda #$20		; overrun error?
+	bit SkStat		; get serial status
+	sta SkReset		; clear status (does not set flags)
+	bmi noframeerror	; a framing error?
+	ldy #FrameError	
+	sty SerialStatus	; signal the error (also: clear Z flag)
+noframeerror:
+	bne nooverrun
+	ldy #OverrunError
+	sty SerialStatus	; signal the error
+nooverrun:
+	lda SerialDataDone	; serial buffer is filled?
+	bne datadone
+	ldy #$00		; no. Data follows
+	lda SerDat
+	clc
+	sta (SerBufLo),y	; store the data
+	adc SerialChkSum	; add up the checksum
+	adc #$00		; add up the carry
+	sta SerialChkSum	; ditto
+	inc SerBufLo		; increment the buffer pointer
+	bne nocarry
+	inc SerBufHi
+nocarry:
+	lda SerBufLo
+	cmp SerBufEndLo
+	lda SerBufHi
+	sbc SerBufEndHi		; are we done?
+	bcc exit		; done?
+	lda SerialNoChkSum	; do we need a checksum?
+	beq needchksum
+	sty SerialNoChkSum	; clear the checksum flag (does not set Z flag)
+	bne xferdone		; the transfer is done
+needchksum:
+	dec SerialDataDone	; serial data is now done, await checksum
+	bne exit		; clears Z flag
+datadone:	
+	lda SerDat		; here:	 is done. Test the checksum
+	cmp SerialChkSum
+	beq xferdone
+	ldy #ChkSumError	; signal a checksum error
+	sty SerialStatus
+xferdone:	
+	dec SerialXferDone	; serial transfer done
+exit:		
 	pla
-	ora IRQStatShadow	; or this IRQ flag in
-	sta IRQStatShadow
-	sta IRQStat		; and now in pokey
-	rts
+	tay
+	pla
+	rti
 .endproc
-;;; AudioInit
-;;; Initialize Pokey Audio for
-;;; serial transfer
-.proc	AudioInit
-	lda #$28		; setup pokey
-	sta AudFreq2
+;;; *** SerOutRQ
+;;; *** The os supplied default serial input handler
+;;; *** called on a serial shift register full
+	.global SerOutIRQ
+.proc	SerOutIRQ
+	inc SerBufLo		; next byte. The first has been sent manually
+	bne nocarry
+	inc SerBufHi
+nocarry:
+	lda SerBufLo
+	cmp SerBufEndLo
+	lda SerBufHi
+	sbc SerBufEndHi
+	bcc senddata
+	lda SerialChkSumDone
+	bne sumdone
+	lda SerialChkSum	; get the checksum
+	sta SerDat		; write it out
+	dec SerialChkSumDone	; note that we're done with it
+	bne exit		; done with it
+sumdone:			; serial checksum has been transfered, we're done
+	lda #$08
+	jsr AbleIRQ		; disable this IRQ, enable XmtDone
+	bne exit
+senddata:			; carry is clear here
+	tya
+	pha	
+	ldy #$00		; carry is clear here
+	lda (SerBufLo),y	; get data
+	sta SerDat		; write out data
+	adc SerialChkSum
+	adc #$00
+	sta SerialChkSum
+	pla
+	tay
+exit:	
+	pla
+	rti	
+.endproc
+;;; *** SerXmtIRQ
+;;; *** The os supplied default serial input handler
+;;; *** called on a serial shift register full
+	.global SerXmtIRQ
+.proc	SerXmtIRQ
+	lda SerialChkSumDone	; checksum done already?
+	beq start		; if not so, then why are we here? Could be the start of a transfer
+	sta SerialSentDone	; xfer is done here
 	lda #$00
-	sta AudFreq3		; approximately 19.200 baud, I suppose	
-	lda #$28
-	sta AudioCtrl		; setup the pokey mode
-	lda #$a8		; medium loud?
-	ldy SerialSound		; or off?
-	bne loud
-	lda #$a0		; no sound
-loud:
-	sta AudCtrl3
-	lda #$a0
-	sta AudCtrl0
-	sta AudCtrl1
-	sta AudCtrl2
-	rts
+	jsr AbleIRQ		; disable all IRQs here
+	pla
+	rti
+;; test whether this starts a serial transfer now
+start:
+	lda SerialSentDone	; are we done already?
+	bne exit
+	tya
+	pha
+	lda #$10		; disable this interrupt, enable SerOut
+	jsr AbleIRQ
+	ldy #$00
+	lda (SerBufLo),y	; get data
+	sta SerDat		; write out data
+	sta SerialChkSum	; keep the checksum
+	pla
+	tay
+exit:
+	pla
+	rti
 .endproc
 	

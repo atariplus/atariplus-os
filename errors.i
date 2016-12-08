@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: errors.i,v 1.17 2013-03-08 22:11:16 thor Exp $		**
+;;; ** $Id: errors.i,v 1.18 2015/08/15 14:47:42 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 Os Error codes					**
 ;;; **********************************************************************

@@ -2,7 +2,7 @@
 ## THOR Os									##
 ## A free operating system for the Atari 8 bit series				##
 ## (c) 2003 THOR Software, Thomas Richter					##
-## $Id: makefile,v 1.53 2013/06/01 17:23:21 thor Exp $				##
+## $Id: makefile,v 1.57 2015/11/08 15:26:39 thor Exp $				##
 ##										##
 ## Makefile for this project							##
 ##################################################################################
@@ -27,7 +27,7 @@ LOADERCONFIG	=	loader.conf
 FMSOVLCONFIG	=	fmsreloc.conf
 FUNCCONFIG1	=	menufunction.conf
 FUNCCONFIG2	=	menufunction.other.conf
-LNFLAGS		=	
+LNFLAGS		=
 ECHO		=	echo
 CC		=	cc
 DIR		=	osrom/
@@ -35,6 +35,10 @@ DIR		=	osrom/
 
 OSSOURCES	=	charmap intlmap \
 			kernel reset nmi irq diskinterf sio cio misc \
+			editor screen keyboard printer tape vectors fms rts \
+			dup romtest mathpack
+OSHISOURCES	=	charmap \
+			kernel reset nmi irq diskinterf hisio cio misc \
 			editor screen keyboard printer tape vectors fms rts \
 			dup romtest mathpack
 ROM850SOURCES	=	850
@@ -48,6 +52,7 @@ HEADER		=	antic gtia pia pokey errors 850 loader
 FUNCSOURCES	=	menudir menuxio menuformat menubinary menuosplus menuduplicat menudupdisk menuutility menuconfig menufms3
 
 OSOBJECTS	=	$(foreach file,$(OSSOURCES),$(file).o)
+OSHIOBJECTS	=	$(foreach file,$(OSHISOURCES),$(file).o)
 ROM850OBJECTS	=	$(foreach file,$(ROM850SOURCES),$(file).o)
 LOADEROBJECTS	=	$(foreach file,$(LOADERSOURCES),$(file).o)
 FMSOVLOBJECTS	=	$(foreach file,$(FMSOVLSOURCES),$(file).o)
@@ -60,13 +65,13 @@ FUNCMENUS	=	$(foreach file,$(FUNCSOURCES),$(file).men)
 INCLUDES	=	$(foreach file,$(HEADER),$(file).i) $(foreach file,$(SOURCES),$(file).i)
 
 
-all	:	osdist rom850 boot850.dump rom850.dump osdist.dump fmsovl.exe diskio.exe menu.exe $(FUNCMENUS) basic.exe help.exe sethdl.exe tape.exe
+all	:	osdist oshidist rom850 boot850.dump rom850.dump osdist.dump oshidist.dump fmsovl.exe diskio.exe menu.exe $(FUNCMENUS) basic.exe help.exe sethdl.exe tape.exe
 
 boot850	:	rom850
 
 rom850	:	prehandlerrom1 prehandlerrom2 reloc loader
 	@ $(ECHO) "Preparing the loader relocatable"
-	@ reloc prehandlerrom1 prehandlerrom2 relocation
+	@ ./reloc prehandlerrom1 prehandlerrom2 relocation
 	@ dd if=loader count=1 bs=256 conv=sync | cat - relocation > boot850
 	@ rm loader relocation prehandlerrom2
 	@ cp prehandlerrom1 rom850
@@ -74,22 +79,37 @@ rom850	:	prehandlerrom1 prehandlerrom2 reloc loader
 osrom	:	prerom checksum
 	@ $(ECHO) "Combining ROM sources..."
 	@ cp prerom osrom
-	@ checksum osrom
+	@ ./checksum osrom
+
+oshirom	:	prehirom checksum
+	@ $(ECHO) "Combining ROM sources..."
+	@ cp prehirom oshirom
+	@ ./checksum oshirom
 
 fmsovl.exe	:	fmsovl createbinfile
 	@ $(ECHO) "Creating fmsovl.exe"
-	@ createbinfile fmsovl fmsovl.exe 0x1f00 0x1f00
+	@ ./createbinfile fmsovl fmsovl.exe 0x1f00 0x1f00
 
 #
 # Use the following make target for the official os++ distribution
 osdist	:	prerom checksum
 	@ $(ECHO) "Combining ROM sources..."
 	@ cp prerom osdist
-	@ checksum osdist
+	@ ./checksum osdist
+#
+# Use the following make target for the official os++ distribution
+oshidist	:	prehirom checksum
+	@ $(ECHO) "Combining ROM sources..."
+	@ cp prehirom oshidist
+	@ ./checksum oshidist
 
 prerom	:	$(OSOBJECTS) $(INCLUDES) $(OSCONFIG)
 	@ $(ECHO) "Linking..."
-	@ $(LN) $(LNFLAGS) -C $(OSCONFIG) $(OSOBJECTS) -o prerom
+	@ $(LN) --dbgfile osrom.debug $(LNFLAGS) -C $(OSCONFIG) $(OSOBJECTS) -o prerom
+
+prehirom	:	$(OSHIOBJECTS) $(INCLUDES) $(OSCONFIG)
+	@ $(ECHO) "Linking..."
+	@ $(LN) $(LNFLAGS) -C $(OSCONFIG) $(OSHIOBJECTS) -o prehirom
 
 prehandlerrom1:	$(ROM850OBJECTS) $(INCLUDES) $(ROM850CONFIG1)
 	@ $(ECHO) "Linking..."
@@ -124,26 +144,26 @@ premenu2:	$(MENUOBJECTS) $(INCLUDES) $(MENUCONFIG2)
 	@ $(LN) $(LNFLAGS) -C $(MENUCONFIG2) $(MENUOBJECTS)
 
 diskio.exe:	prediskio1 prediskio2 createbinfile reloc
-	@ reloc diskio6lo.7.bin diskio6lo.8.bin diskio6lo.reloc
-	@ reloc diskio6hi.7.bin diskio6hi.8.bin diskio6hi.reloc
+	@ ./reloc diskio6lo.7.bin diskio6lo.8.bin diskio6lo.reloc
+	@ ./reloc diskio6hi.7.bin diskio6hi.8.bin diskio6hi.reloc
 	@ cat diskio6lo.7.bin diskio6lo.reloc >diskio6lop.bin
 	@ cat diskio6hi.7.bin diskio6hi.reloc >diskio6hip.bin
-	@ createbinfile diskio6init.bin diskio6.bin 0x1f00 0x1f00
-	@ createbinfile -n diskio6lop.bin diskio6lo.bin 0x2300
-	@ createbinfile -n diskio6hip.bin diskio6hi.bin 0x2400
+	@ ./createbinfile diskio6init.bin diskio6.bin 0x1f00 0x1f00
+	@ ./createbinfile -n diskio6lop.bin diskio6lo.bin 0x2300
+	@ ./createbinfile -n diskio6hip.bin diskio6hi.bin 0x2400
 	@ cat diskio6.bin diskio6lo.bin diskio6hi.bin >diskio.exe
 
 tape.exe:	pretape1 pretape2 createbinfile reloc
 	@ mv tapeinit.bin tapeinitp.bin
-	@ reloc taperesident.7.bin taperesident.8.bin taperesident.reloc
+	@ ./reloc taperesident.7.bin taperesident.8.bin taperesident.reloc
 	@ cat taperesident.7.bin taperesident.reloc >taperesidentp.bin
-	@ createbinfile tapeinitp.bin tapeinit.bin 0x3100
-	@ createbinfile -n -i taperesidentp.bin taperesident.bin 0x3440 0x3101
+	@ ./createbinfile tapeinitp.bin tapeinit.bin 0x3100
+	@ ./createbinfile -n -i taperesidentp.bin taperesident.bin 0x3440 0x3101
 	@ cat tapeinit.bin taperesident.bin >tape.exe
 
 menu.exe:	premenu1 premenu2 reloc
-	@ reloc -o menu.7.bin menu.8.bin menu.reloc
-	@ createbinfile -i menuload.bin menu.bin 0x0600 0x0600
+	@ ./reloc -o menu.7.bin menu.8.bin menu.reloc
+	@ ./createbinfile -i menuload.bin menu.bin 0x0600 0x0600
 	@ cat menu.bin menu.7.bin menu.reloc >menu.exe
 
 loader:	$(LOADEROBJECTS) $(INCLUDES) $(LOADERCONFIG)
@@ -167,7 +187,7 @@ clean	:
 %.dump	:	% bintohex
 	@ $(ECHO) "Converting" $* "to" $*.dump
 	@ echo "unsigned char" $*"[] = " >$*.dump
-	@ bintohex <$* >>$*.dump
+	@ ./bintohex <$* >>$*.dump
 
 %.pre	:	%.o
 	@ $(LN) $(LNFLAGS) -C $(FUNCCONFIG1) -o $*_1.bin $*.o
@@ -175,47 +195,47 @@ clean	:
 	@ touch $*.pre
 
 menudir.men	:	menudir.pre createmenu
-	@ createmenu menudir_1.bin menudir_2.bin menudir.men "Directory" "To Cartridge" "Run DOS"
+	@ ./createmenu menudir_1.bin menudir_2.bin menudir.men "Directory" "To Cartridge" "Run DOS"
 
 menuxio.men	:	menuxio.pre createmenu
-	@ createmenu menuxio_1.bin menuxio_2.bin menuxio.men "Delete File(s)" "Rename File(s)" "Lock File(s)" "Unlock File(s)"
+	@ ./createmenu menuxio_1.bin menuxio_2.bin menuxio.men "Delete File(s)" "Rename File(s)" "Lock File(s)" "Unlock File(s)"
 
 menuformat.men	:	menuformat.pre createmenu
-	@ createmenu menuformat_1.bin menuformat_2.bin menuformat.men "Format Single" "Format Disk" "Clear Disk"
+	@ ./createmenu menuformat_1.bin menuformat_2.bin menuformat.men "Format Single" "Format Disk" "Clear Disk"
 
 menubinary.men	:	menubinary.pre createmenu
-	@ createmenu menubinary_1.bin menubinary_2.bin menubinary.men "Binary Save" "Binary Load" "Run at Address"
+	@ ./createmenu menubinary_1.bin menubinary_2.bin menubinary.men "Binary Save" "Binary Load" "Run at Address"
 
 menuosplus.men	:	menuosplus.pre createmenu
-	@ createmenu menuosplus_1.bin menuosplus_2.bin menuosplus.men "Load OS/A+ File"
+	@ ./createmenu menuosplus_1.bin menuosplus_2.bin menuosplus.men "Load OS/A+ File"
 
 menuduplicat.men	:	menuduplicat.pre createmenu
-	@ createmenu menuduplicat_1.bin menuduplicat_2.bin menuduplicat.men "Duplicate File(s)"
+	@ ./createmenu menuduplicat_1.bin menuduplicat_2.bin menuduplicat.men "Duplicate File(s)"
 
 menudupdisk.men		:	menudupdisk.pre createmenu
-	@ createmenu menudupdisk_1.bin menudupdisk_2.bin menudupdisk.men "Duplicate Disk"
+	@ ./createmenu menudupdisk_1.bin menudupdisk_2.bin menudupdisk.men "Duplicate Disk"
 
 menuutility.men		:	menuutility.pre createmenu
-	@ createmenu menuutility_1.bin menuutility_2.bin menuutility.men "Check Disk" "Radix Convert" "Drive Diagnostics" "Set Disk Headline" "Check Density" "Set Default Device"
+	@ ./createmenu menuutility_1.bin menuutility_2.bin menuutility.men "Check Disk" "Radix Convert" "Drive Diagnostics" "Set Disk Headline" "Check Density" "Set Default Device"
 
 menuconfig.men	:	menuconfig.pre createmenu
-	@ createmenu menuconfig_1.bin menuconfig_2.bin menuconfig.men "Configure DOS" "System Information"
+	@ ./createmenu menuconfig_1.bin menuconfig_2.bin menuconfig.men "Configure DOS" "System Information"
 
 menufms3.men	:	menufms3.pre createmenu
-	@ createmenu menufms3_1.bin menufms3_2.bin menufms3.men
+	@ ./createmenu menufms3_1.bin menufms3_2.bin menufms3.men
 
 basic.exe	:	enablebasic.o enablebasic.conf createbinfile
 	@ $(LN) $(LNFLAGS) -C enablebasic.conf enablebasic.o -o basic.bin
-	@ createbinfile basic.bin basic.exe 0x0500 0x0500
+	@ ./createbinfile basic.bin basic.exe 0x0500 0x0500
 
 help.exe	:	help.o help.conf createbinfile
 	@ $(LN) $(LNFLAGS) -C help.conf help.o -o help.bin
-	@ createbinfile -i help.bin help.exe 0x0400 0x0400
+	@ ./createbinfile -i help.bin help.exe 0x0400 0x0400
 	@ tr '\012' '\233' <help.txt >>help.exe
 
 sethdl.exe	:	setheadline.o setheadline.conf createbinfile
 	@ $(LN) $(LNFLAGS) -C setheadline.conf setheadline.o -o sethdl.bin
-	@ createbinfile sethdl.bin sethdl.exe 0x0400 0x0400
+	@ ./createbinfile sethdl.bin sethdl.exe 0x0400 0x0400
 
 createmenu:	createmenu.c
 	@ $(ECHO) "Compiling the createmenu program"

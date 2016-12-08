@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: dup.i,v 1.10 2013-04-27 10:30:38 thor Exp $			**
+;;; ** $Id: dup.i,v 1.11 2015/08/15 14:47:42 thor Exp $			**
 ;;; **									**
 ;;; ** In this module:	 Minimal DUP command line parser		**
 ;;; **********************************************************************

@@ -1,7 +1,7 @@
 /*
 ** Create a binary load file from a memory dump, set its load and run address.
 ** (c) 2013 THOR-Software, private use only.
-** $Id: createbinfile.c,v 1.3 2013-04-07 20:04:16 thor Exp $
+** $Id: createbinfile.c,v 1.3 2013/04/07 20:04:16 thor Exp $
 **
 */
 

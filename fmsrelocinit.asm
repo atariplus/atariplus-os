@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: fmsrelocinit.asm,v 1.6 2013/06/02 20:41:04 thor Exp $		**
+;;; ** $Id: fmsrelocinit.asm,v 1.7 2016/09/11 16:01:53 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 Relocation of the D: handler behind the cart	**
 ;;; **			 This is the init method 			**
@@ -75,6 +75,11 @@ founddos:
 	jsr InstallBasicSwitch	; ok, install the basic switch
 	jsr InstallFmsSwitch
 
+	;; copy the last page of basic over as it contains strings
+	;; required for directory operations. Actually, only
+	;; basic++ requires this.
+	jsr CopyBasicStrings
+
 	lda PIAPortB
 	and #$fd		; re-enable basic
 	sta PIAPortB
@@ -125,6 +130,22 @@ exit:
 	lda #CmdClose
 	sta IOCBCmd,x
 	jsr CIOVector		; close this
+	rts
+.endproc
+;;; *** Copy the last page of basic(++) as it contains
+;;; *** strings required for directory operations.
+.proc	CopyBasicStrings
+	ldx #$00
+	ldy PIAPortB
+cploop:
+	tya
+	and #$fd		; re-enable basic
+	sta PIAPortB
+	lda $bf00,x
+	sty PIAPortB
+	sta $bf00,x
+	inx
+	bne cploop
 	rts
 .endproc
 ;;; *** Print a string (a,y) to the standard out

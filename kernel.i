@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: kernel.i,v 1.17 2013-05-04 20:48:38 thor Exp $		**
+;;; ** $Id: kernel.i,v 1.18 2015/08/15 14:47:43 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 Kernel definitions: The jump vectors of the Os	**
 ;;; **********************************************************************

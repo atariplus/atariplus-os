@@ -2,7 +2,7 @@
 ;;; ** Thor Os                                                          **
 ;;; ** A free operating system for the Atari 8 Bit series               **
 ;;; ** (c) 2003 THOR Software, Thomas Richter                           **
-;;; ** $Id: menuduplicat.asm,v 1.9 2013/11/24 19:29:00 thor Exp $       **
+;;; ** $Id: menuduplicat.asm,v 1.10 2015/11/08 15:26:39 thor Exp $       **
 ;;; **                                                                  **
 ;;; ** In this module:   Duplicate file					**
 ;;; **********************************************************************
@@ -356,7 +356,7 @@ isdone:
 setflags:	
 	ldy #0
 	eor (CurrentEntry),y
-	and #~(IsOpenW|IsPartial|IsDone) ;preserve these bits
+	and #(~(IsOpenW|IsPartial|IsDone) & 255) ;preserve these bits
 	eor (CurrentEntry),y
 	sta (CurrentEntry),y
 	clc

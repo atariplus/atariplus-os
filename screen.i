@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: screen.i,v 1.17 2014/01/01 18:22:16 thor Exp $		**
+;;; ** $Id: screen.i,v 1.18 2015/08/20 19:11:09 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 Implementation of the S: handler		**
 ;;; **********************************************************************
@@ -44,6 +44,9 @@ FillColor		=	$2fd	; color to fill areas with
 ScreenStack		=	$318	; stack pointer for the screen handler (also used by SIO)
 CharacterSet		=	$e000	; the default character set
 
+CmdDrawTo		=	$11 	; the CIO command for drawing lines
+CmdFillTo		=	$12	; the CIO command for lines with right-fill
+	
 ;; globally defined entry points
 	.global ScreenOpen		; CIO S: open vector
 	.global ScreenClose		; CIO S: close vector

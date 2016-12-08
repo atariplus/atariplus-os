@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: editor.i,v 1.16 2014/01/01 18:22:16 thor Exp $		**
+;;; ** $Id: editor.i,v 1.17 2016/12/07 21:26:44 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 Implementation of the E: handler		**
 ;;; **********************************************************************
@@ -53,3 +53,5 @@ CursorInhibit		=	$2f0	; cursor visibility flag (=0: visible)
 	.global SwapGfxWindowCursor
 	.global BitMasks		; bitmask containing the powers of two
 	.global RemoveCursor
+	.global ResetCursorPtr
+	

@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: dup.asm,v 1.28 2014/01/13 06:09:45 thor Exp $		**
+;;; ** $Id: dup.asm,v 1.29 2016/11/10 20:07:35 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 Minimal DUP command line parser		**
 ;;; **********************************************************************
@@ -42,164 +42,7 @@
 	lda #>Title
 	ldx #TitleL
 	jsr Print		; print the header message
-	jmp DupLoop		; loop now
-.endproc
-DirInit:	.byte "D1:"	; initializer for the device directory
-DirInitL	=	*-DirInit
-Title:		.byte $7d
-		.byte "Thor Dos 2.++ V 1.8 Enhanced Density",$9b
-		.byte "Copyright (c) 1990-2014 by THOR",$9b
-TitleL		=	*-Title
-;;; *** InitDriveName
-;;; *** Install the device name
-.proc	InitDriveName
-	ldx #DirInitL-1
-ilp:
-	lda DirInit,x
-	sta DupBuffer,x
-	dex
-	bpl ilp
-	rts
-.endproc	
-;;; *** PrintLF
-;;; *** Print a line feed
-LF:		.byte $9b
-.proc	PrintLF
-	ldy #<LF
-	lda #>LF
-	ldx #1
 	;; runs into the following
-.endproc
-;;; *** Print
-;;; *** Print the text at Lo=Y, Hi=A, length in X thru IOCB #0
-.proc	Print
-	stx IOCBLen
-	ldx #0
-	jsr SetIOCBAddress
-	lda #CmdPutBlock
-	sta IOCBCmd
-	jmp CIOVector
-.endproc
-;;; *** AssignInputBuf
-;;; *** Set the IOCB target address to that of the input buffer
-.proc	AssignInputBuf
-	lda #>(DupBuffer+3)
-	ldy #<(DupBuffer+3)
-	;; runs into the following
-.endproc
-;;; *** SetIOCBAddress
-;;; *** Set the target address for the IOCB in X with A=hi,Y=lo
-.proc	SetIOCBAddress
-	sta IOCBAdr+1,x
-	tya
-	sta IOCBAdr,x
-	lda #0
-	sta IOCBLen+1,x
-	rts
-.endproc
-;;; *** FindEndOfOption
-;;; *** Advance the buffer to the end of the comma-separated option
-.proc	FindEndOfOption
-	lda #','
-	Skip2
-	;; runs into the following
-.endproc
-;;; *** FindEndOfToken
-;;; *** Advance the buffer offset to the end of the token and to the start of the next
-.proc	FindEndOfToken
-	lda #' '
-	;; runs into the following
-.endproc
-;;; *** FindEndOfTokenAt
-;;; *** Similar to the above, but the token delimiter is expected in A
-;;; *** Returns EQ (Z=1) on EOF, otherwise NE
-.proc	FindEndOfTokenAt
-	sta FmsPtr+1
-	dey
-findloop:
-	iny
-	sty FmsPtr
-	lda FmsPtr+1		; get the character
-	jsr SkipSeparator	; skip over the current separator
-	beq exit		; in case of EOL, leave immediately
-	cpy FmsPtr		; still at the same character?
-	beq findloop
-exit:
-	rts
-.endproc
-;;; *** SkipComma
-;;; *** Skip the comma
-.proc	SkipComma
-	lda #','
-	Skip2
-	;; runs into/over the following
-.endproc
-;;; *** SkipBlanks
-;;; *** Skip blanks in the input buffer
-.proc	SkipBlanks
-	lda #' '
-	;; runs into the following
-.endproc
-;;; *** SkipSeparator
-;;; *** Skip the separator in A in the command buffer. Y contains the offset into the
-;;; *** command buffer. Returns EQ if an EOL has been found
-.proc	SkipSeparator
-skiploop:
-	iny
-	cmp DupBuffer-1,y
-	beq skiploop
-	dey
-	;; runs into the following
-.endproc
-;;; *** CheckForEOL
-;;; *** Check whether at the indiciated (Y) position of the input buffer an EOL is present
-.proc	CheckForEOL
-	lda DupBuffer,y
-	cmp #$9b
-	rts
-.endproc
-;;; *** SetDevice
-;;; *** Check whether in the buffer at offset Y a device specification is present.
-;;; *** If so, copy it to the device name to the buffer at X and advance Y over it.
-.proc	SetDevice
-	lda #'1'		; the default unit
-	pha			; keep it
-	lda #':'
-	cmp DupBuffer+1,y	; a colon here?
-	beq setdeviceone
-	cmp DupBuffer+2,y
-	bne exit		; not here, then nothing
-	pla
-	lda DupBuffer+1,y	; is the unit instead
-	pha
-	lda DupBuffer,y		; get device
-	iny			; skip unit
-	bne insertme
-setdeviceone:
-	lda DupBuffer,y		; get device name
-insertme:
-	sta DupBuffer,x		; set the device name
-	pla	
-	sta DupBuffer+1,x	; install the unit
-	iny			; skip name
-	iny			; skip colon
-	rts
-exit:
-	pla
-	rts
-.endproc
-;;; *** MoveBuffer
-;;; *** Move the input buffer at offset Y to the input buffer at offset X
-;;; *** with X <= Y, up to the EOL
-.proc	MoveBuffer
-movelp:
-	lda DupBuffer,y
-	sta DupBuffer,x
-	iny
-	inx
-	cmp #$9b
-	bne movelp
-	rts
 .endproc
 ;;; *** DupLoop
 ;;; *** This is the main loop of the DUP
@@ -314,18 +157,6 @@ repeat:				; call the command and return
 	rts
 error:
 	jmp ErrorExtraArgument
-;;; Commands sorted by character position for easy comparison
-CmdChar1:	.byte "DDRLUCFCRSCLN"
-CmdChar2:	.byte "IEEONAOLUAOOE"
-CmdChar3:	.byte "RLNCLRRENVPAW"
-NumCommands	=	*-CmdChar3
-;;; command targets/jump addresses
-CmdHi:		.byte >(CmdDir-1),>(CmdDel-1),>(CmdRen-1),>(CmdLoc-1),>(CmdUnl-1),>(CmdCar-1)
-		.byte >(CmdFor-1),>(CmdCle-1),>(CmdRun-1),>(CmdSav-1),>(CmdCop-1),>(CmdLoa-1)
-		.byte >(CmdNew-1)
-CmdLo:		.byte <(CmdDir-1),<(CmdDel-1),<(CmdRen-1),<(CmdLoc-1),<(CmdUnl-1),<(CmdCar-1)
-		.byte <(CmdFor-1),<(CmdCle-1),<(CmdRun-1),<(CmdSav-1),<(CmdCop-1),<(CmdLoa-1)
-		.byte <(CmdNew-1)
 .endproc
 ;;; *** Commands start here:	Generic CIO commands are handled by a single jump-in
 ;;; *** CmdFor
@@ -515,8 +346,6 @@ digit2:
 	ldx #$ff
 	txs			; reset the stack
 	jmp DupLoop
-ErrorMsg:	.byte "Error - "
-ErrorMsgL	= *-ErrorMsg
 .endproc
 ;;; *** ConvertHexDigit
 ;;; *** Convert the Hex digit in the input buffer at offset Y to binary
@@ -1021,6 +850,7 @@ exitwait:
 exitbrk:
 	txs			; reset the stack
 	jmp DupLoop
+.endproc	
 ;;; GetMemLo
 ;;; Get the smallest address that can be populated for copying data
 ;;; lo in Y, hi in A
@@ -1043,7 +873,158 @@ useAppMem:			; be nice and use Application memory
 	ldy AppMemHi
 	rts
 .endproc
-
+;;; *** InitDriveName
+;;; *** Install the device name
+.proc	InitDriveName
+	ldx #DirInitL-1
+ilp:
+	lda DirInit,x
+	sta DupBuffer,x
+	dex
+	bpl ilp
+	rts
+.endproc	
+;;; *** PrintLF
+;;; *** Print a line feed
+LF:		.byte $9b
+.proc	PrintLF
+	ldy #<LF
+	lda #>LF
+	ldx #1
+	;; runs into the following
+.endproc
+;;; *** Print
+;;; *** Print the text at Lo=Y, Hi=A, length in X thru IOCB #0
+.proc	Print
+	stx IOCBLen
+	ldx #0
+	jsr SetIOCBAddress
+	lda #CmdPutBlock
+	sta IOCBCmd
+	jmp CIOVector
+.endproc
+;;; *** AssignInputBuf
+;;; *** Set the IOCB target address to that of the input buffer
+.proc	AssignInputBuf
+	lda #>(DupBuffer+3)
+	ldy #<(DupBuffer+3)
+	;; runs into the following
+.endproc
+;;; *** SetIOCBAddress
+;;; *** Set the target address for the IOCB in X with A=hi,Y=lo
+.proc	SetIOCBAddress
+	sta IOCBAdr+1,x
+	tya
+	sta IOCBAdr,x
+	lda #0
+	sta IOCBLen+1,x
+	rts
+.endproc
+;;; *** FindEndOfOption
+;;; *** Advance the buffer to the end of the comma-separated option
+.proc	FindEndOfOption
+	lda #','
+	Skip2
+	;; runs into the following
+.endproc
+;;; *** FindEndOfToken
+;;; *** Advance the buffer offset to the end of the token and to the start of the next
+.proc	FindEndOfToken
+	lda #' '
+	;; runs into the following
+.endproc
+;;; *** FindEndOfTokenAt
+;;; *** Similar to the above, but the token delimiter is expected in A
+;;; *** Returns EQ (Z=1) on EOF, otherwise NE
+.proc	FindEndOfTokenAt
+	sta FmsPtr+1
+	dey
+findloop:
+	iny
+	sty FmsPtr
+	lda FmsPtr+1		; get the character
+	jsr SkipSeparator	; skip over the current separator
+	beq exit		; in case of EOL, leave immediately
+	cpy FmsPtr		; still at the same character?
+	beq findloop
+exit:
+	rts
+.endproc
+;;; *** SkipComma
+;;; *** Skip the comma
+.proc	SkipComma
+	lda #','
+	Skip2
+	;; runs into/over the following
+.endproc
+;;; *** SkipBlanks
+;;; *** Skip blanks in the input buffer
+.proc	SkipBlanks
+	lda #' '
+	;; runs into the following
+.endproc
+;;; *** SkipSeparator
+;;; *** Skip the separator in A in the command buffer. Y contains the offset into the
+;;; *** command buffer. Returns EQ if an EOL has been found
+.proc	SkipSeparator
+skiploop:
+	iny
+	cmp DupBuffer-1,y
+	beq skiploop
+	dey
+	;; runs into the following
+.endproc
+;;; *** CheckForEOL
+;;; *** Check whether at the indiciated (Y) position of the input buffer an EOL is present
+.proc	CheckForEOL
+	lda DupBuffer,y
+	cmp #$9b
+	rts
+.endproc
+;;; *** SetDevice
+;;; *** Check whether in the buffer at offset Y a device specification is present.
+;;; *** If so, copy it to the device name to the buffer at X and advance Y over it.
+.proc	SetDevice
+	lda #'1'		; the default unit
+	pha			; keep it
+	lda #':'
+	cmp DupBuffer+1,y	; a colon here?
+	beq setdeviceone
+	cmp DupBuffer+2,y
+	bne exit		; not here, then nothing
+	pla
+	lda DupBuffer+1,y	; is the unit instead
+	pha
+	lda DupBuffer,y		; get device
+	iny			; skip unit
+	bne insertme
+setdeviceone:
+	lda DupBuffer,y		; get device name
+insertme:
+	sta DupBuffer,x		; set the device name
+	pla	
+	sta DupBuffer+1,x	; install the unit
+	iny			; skip name
+	iny			; skip colon
+	rts
+exit:
+	pla
+	rts
+.endproc
+;;; *** MoveBuffer
+;;; *** Move the input buffer at offset Y to the input buffer at offset X
+;;; *** with X <= Y, up to the EOL
+.proc	MoveBuffer
+movelp:
+	lda DupBuffer,y
+	sta DupBuffer,x
+	iny
+	inx
+	cmp #$9b
+	bne movelp
+	rts
+.endproc
+	
 CopyHdr:	.byte "Copying "
 CopyHdrL	=	*-CopyHdr
 
@@ -1059,4 +1040,26 @@ DestinationMsgL	=	*-DestinationMsg
 
 SourceMsg:	.byte "Source"
 SourceMsgL	=	*-SourceMsg
-.endproc
+
+ErrorMsg:	.byte "Error - "
+ErrorMsgL	= *-ErrorMsg
+	
+DirInit:	.byte "D1:"	; initializer for the device directory
+DirInitL	=	*-DirInit
+Title:		.byte $7d
+		.byte "Thor Dos 2.++ V 1.8 Enhanced Density",$9b
+		.byte "Copyright (c) 1990-2014 by THOR",$9b
+TitleL		=	*-Title
+
+	;;; Commands sorted by character position for easy comparison
+CmdChar1:	.byte "DDRLUCFCRSCLN"
+CmdChar2:	.byte "IEEONAOLUAOOE"
+CmdChar3:	.byte "RLNCLRRENVPAW"
+NumCommands	=	*-CmdChar3
+;;; command targets/jump addresses
+CmdHi:		.byte >(CmdDir-1),>(CmdDel-1),>(CmdRen-1),>(CmdLoc-1),>(CmdUnl-1),>(CmdCar-1)
+		.byte >(CmdFor-1),>(CmdCle-1),>(CmdRun-1),>(CmdSav-1),>(CmdCop-1),>(CmdLoa-1)
+		.byte >(CmdNew-1)
+CmdLo:		.byte <(CmdDir-1),<(CmdDel-1),<(CmdRen-1),<(CmdLoc-1),<(CmdUnl-1),<(CmdCar-1)
+		.byte <(CmdFor-1),<(CmdCle-1),<(CmdRun-1),<(CmdSav-1),<(CmdCop-1),<(CmdLoa-1)
+		.byte <(CmdNew-1)

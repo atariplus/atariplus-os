@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: reset.asm,v 1.39 2014/01/13 06:09:45 thor Exp $		**
+;;; ** $Id: reset.asm,v 1.40 2015/09/14 16:12:41 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 Startup and Reset handling			**
 ;;; **********************************************************************
@@ -322,8 +322,6 @@ coldstart:
 fmsinit:	
 	lda #$80		; launch FMS on reset
 	jsr InitVectors
-	
-
 	jsr FmsInitVector	; initialize the fms
 initflag:	
 	lda #$01
@@ -400,12 +398,14 @@ booterror:			; jumped here if a boot error was detected
 	jmp reboot		; try again
 done:
 	jsr CallInitVector	; run the init vector of the boot
-	bcs booterror		; if this signaled a failure, try again
+	bcs gofmsinit		; if this signaled a failure, use the internal FMS
 	jsr CallDosInit	
 	lda #$01
 	ora BootFlag
 	sta BootFlag
 	rts
+gofmsinit:
+	jmp fmsinit
 .endproc
 ;;; *** InitVectors
 ;;; *** set the Dos boot flags in A, initialize the DOS vectors

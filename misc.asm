@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: misc.asm,v 1.21 2014/01/13 06:09:45 thor Exp $		**
+;;; ** $Id: misc.asm,v 1.24 2014/03/14 23:16:43 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 Miscellaneous helper functions in the kernel	**
 ;;; **********************************************************************
@@ -19,6 +19,7 @@
 	.include "kernel.i"
 	.include "pia.i"
 	.include "fms.i"
+	.include "nmi.i"
 		
 	.segment  "OsHi"
 	
@@ -250,6 +251,107 @@ fail:				; runs into the following
 .proc	LaunchDup
 	jsr MapSelfTest
 	jmp RunDup		; is within the selftest
+.endproc
+;;; AudioCleanup
+;;; Clean the Pokey and serial registers after a SIO operation
+	.global AudioCleanup
+.proc	AudioCleanup
+	lda #$00
+	sta AudCtrl0
+	sta AudCtrl1
+	sta AudCtrl2
+	sta AudCtrl3		; clear pokey audio:	 Hmm, less would be possible
+	beq AbleIRQ		; disable all serial interrupts
+.endproc
+;;; InitForSend
+;;; Setup pokey such that we can send bytes
+;;; This is also available as a kernel vector
+	.global InitForSend
+.proc	InitForSend
+	jsr AudioInit
+	lda #$20
+	jsr SetSerialMode
+	lda #$10		; serout IRQ on
+	bne AbleIRQ		; for compatibility, required by misc. Not required by SIO. Jumps always
+.endproc
+;;; InitForReceive
+;;; Setup pokey such that we can receive bytes
+.proc	InitForReceive
+	jsr AudioInit
+	lda #$10
+	jsr SetSerialMode
+	lda #$20		; serin IRQ on
+	;; runs into the following
+.endproc
+;;; AbleIRQ
+;;; Enable the pokey IRQ given in A
+	.global	AbleIRQ
+.proc	AbleIRQ
+	pha
+	lda #$c7
+	and IRQStatShadow	; first disable all serial IRQ
+	sta IRQStatShadow	; keep
+	pla
+	ora IRQStatShadow	; or this IRQ flag in
+	sta IRQStatShadow
+	sta IRQStat		; and now in pokey
+	rts
+.endproc
+;;; *** SetSerialMode
+;;; *** Change the pokey serial transmission mode by
+;;; *** setting the bits in A in SkStat
+	.global SetSerialMode
+.proc	SetSerialMode
+	pha
+	lda #$07
+	and SkStatShadow
+	sta SkStatShadow
+	pla
+	ora SkStatShadow
+	sta SkStatShadow
+	sta SkStat
+	sta SkReset
+	rts
+.endproc
+;;; AudioInit
+;;; Initialize Pokey Audio for
+;;; serial transfer
+	.global AudioInit
+.proc	AudioInit
+	lda #$28		; setup pokey
+	sta AudFreq2
+	lda #$00
+	sta AudFreq3		; approximately 19.200 baud, I suppose	
+	lda #$28
+	sta AudioCtrl		; setup the pokey mode
+	lda #$a8		; medium loud?
+	ldy SerialSound		; or off?
+	bne loud
+	lda #$a0		; no sound
+loud:
+	sta AudCtrl3
+	lda #$a0
+	sta AudCtrl0
+	sta AudCtrl1
+	sta AudCtrl2
+	rts
+.endproc
+;;; ComputeTimeout
+;;; Compute the timeout value for the operation
+;;; with Lo->Y, Hi->X
+	.global ComputeTimeout
+.proc	ComputeTimeout
+	lda SIOTimeout
+	ror a
+	ror a			; /4 * 256 = *64
+	tay
+	and #$3f		; -> Hi
+	tax
+	tya
+	ror a
+	and #$c0		; remainder->Lo
+	tay
+	rts
 .endproc	
 ;;; *** Offsets into spare areas in the directory not used
 ;;; *** for the directory listing that can be used by the FMS

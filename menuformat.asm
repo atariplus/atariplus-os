@@ -2,7 +2,7 @@
 ;;; ** Thor Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: menuformat.asm,v 1.3 2013-05-18 19:48:00 thor Exp $		**
+;;; ** $Id: menuformat.asm,v 1.4 2015/08/15 14:47:43 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 Format menu for DUP 2.++			**
 ;;; **********************************************************************

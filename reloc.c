@@ -2,7 +2,7 @@
 ** Compute the relocation offsets of two 650 binary files that differ by $0102
 ** in their start address.
 ** (c) 2003 THOR-Software, private use only.
-** $Id: reloc.c,v 1.5 2013-04-07 21:00:41 thor Exp $
+** $Id: reloc.c,v 1.6 2015/10/24 22:21:04 thor Exp $
 **
 */
 
@@ -107,13 +107,13 @@ int createrelocation(const unsigned char *in1,const unsigned char *in2,char *out
 		  "or the file is not relocatable at offset 0x%x\n",d2-d1,i);
 	  return 0;
 	}
+	/*
+	** notice that even though the next byte differs, we do not
+	** need to test it.
+	*/
+	last = 1;
       }
       *out = 1;
-      /*
-      ** notice that even though the next byte differs, we do not
-      ** need to test it.
-      */
-      last = 1;
     }
     in1++,in2++,out++;
   }

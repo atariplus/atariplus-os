@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: mathpack.asm,v 1.25 2013/06/02 20:41:05 thor Exp $		**
+;;; ** $Id: mathpack.asm,v 1.42 2016/11/10 20:07:35 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 math pack functions				**
 ;;; **********************************************************************
@@ -44,6 +44,7 @@
 	Skip2
 gotdigit:
 	dec fchflg		; accumulated numbers
+nextdigit:
 	jsr FetchDigitY		; get the next digit
 	bcs dotsign
 	ldx fr0+1		; already up to the one-digit?
@@ -89,17 +90,17 @@ dotsign:
 	ldx fchflg		; start of number found already?
 	bne noexp		; if so, this ends it
 	cmp #'+'		; positive sign?
-	beq gotdigit		; continue right away
+	beq nextdigit		; continue right away
 	cmp #'-'		; or negative?
 	bne error		; if none, then this is not a valid number at all
 	lda #$80		; sign for negative
 	sta nsign		; got the sign of the number now
-	bmi gotdigit
+	bmi nextdigit
 dot:				; got a decimal dot, set flag
 	lda digrt		; dot already parsed?
 	bpl noexp		; if so, end of number
 	inc digrt
-	beq gotdigit		; will become zero, thus jumps always
+	beq nextdigit		; will become zero, thus jumps always
 exponent:
 	lda fchflg		; if the number starts with E, make this invalid
 	beq error
@@ -164,6 +165,28 @@ noexp:
 even:
 	jmp RoundExt		; Normalize the number
 .endproc
+;;; *** TestForZero
+;;; *** Test whether fr1 is zero or not
+.proc	TestForZero
+	lda fr1			; must not be zero
+	and #$7f
+	bne ok
+	lda fr1+1
+	ora fr1+2
+	ora fr1+3
+	ora fr1+4
+	ora fr1+5
+ok:
+	rts
+.endproc
+;;; *** NegFr0
+;;; *** Compute -fr0 -> fr0
+.proc	NegFr0
+	lda fr0
+	eor #$80		; yes, really that easy.
+	sta fr0
+	rts
+.endproc
 ;;; *** BCDToAscii		must go to d8e6
 ;;; *** This routine is the reverse of the above,
 ;;; *** it converts a floating point value in fr0
@@ -174,10 +197,11 @@ even:
 	jsr LoadOutbuff
 	ldy #0			; cix
 	ldx fr0			; exponent = 0 (=> number = zero?)
-	bne nonzero
-	tya			; generate a single zero digit
-	beq markend
-nonzero:
+	txa
+	and #$7f
+	beq makezero		; if the exponent is zero, set the result to zero (actually, denormalized)
+	;; here nonzero.
+	txa
 	bpl positive
 	lda #'-'
 	sta (inbuff),y		; is negative, indicate as such
@@ -194,6 +218,16 @@ positive:
 	jsr StripTrailingZeros
 	bne markend
 exponential:			; use half-logarithmic conversion
+	cmp #14
+	bcc makezero
+	bne valid
+	ldx fr0+1		; is it -99?
+	cpx #$10		; and there is a tenth digit?
+	bcs valid		; then this can be printed
+makezero:	
+	lda #0
+	beq markend
+valid:
 	asl a
 	eor #$80		; keep exponent (=-128)
 	sta eexp		; after converting back to the base of ten
@@ -322,84 +356,78 @@ add:	lda fr0+1,x
 .proc	BCDToInt
 	jsr BCDToIntDown	; round down the result
 	bcs error
-	stx ztemp1
-	sty ztemp1+1		; store result
-	jsr NextFr0Digit	; next digit
-	ldx ztemp1		; get lo
-	ldy ztemp1+1		; get hi again
-	cmp #5			; five or above?
-	bcc nocarry		; if not, do not perform rounding
-	inx
-	bne nocarry
-	iny			; carry over into high
-	beq error		; overflow (C will be set here anyhow)
-nocarry:			; done here, copy the result into fr0
-	stx fr0
+	bne zero		; not the critical exponent, must be zero
+	ldy fr0+1,x		; get the next digit
+	cpy #$50		; set C=1 if above .50
+	bcc nocarry
+	adc #$00		; increment low
+	bcc nocarry
+	inc ztemp1+1
+	beq error		; carry is still set
+nocarry:
+	sta fr0
+zero:	
+	ldy ztemp1+1
 	sty fr0+1
 	clc			
 error:	
 	rts
 .endproc
-;;; ***BCDToIntDown
+;;; *** BCDToIntDown
 ;;; *** Round the BCD value in fr0 *down* to the next integer,
-;;; *** deliver the result in X,Y
+;;; *** deliver the result in A,ztemp1+1
 .proc	BCDToIntDown
-	ldy #0			; zero hi
-	ldx #0			; zero lo
+	ldx #0			; zero hi
+	stx ztemp1
+	stx ztemp1+1
 	sec			; set the error flag
 	lda fr0			; get exponent
-	bmi error		; negative numbers not handled here
+	bpl ok
+	and #$7f
+	bne exit		; negative numbers not handled here, C=1 for error is set
+ok:
 	cmp #$43		; or definitely too large
-	bcs error
+	bcs exit
+	stx fr0	     		; reset the result
 	sbc #$3f-1		; carry is clear
-	beq zero		; is exactly below one
-	bcc zero		; exponent too small, make zero (is already zero)
-	asl a			; from base 100 to base 10
-	sta eexp
-	tya			; lo (starts with zero)
+	beq done		; is exactly below one
+	bcc exit		; exponent too small, make zero (is already zero)
+	sta eexp		; number of digit pairs to touch
 loop:
-	sty ztemp1+1		; clear hi
-	sta ztemp1
-	asl a			; *2
-	rol ztemp1+1
-	bcs error
-	asl a
-	rol ztemp1+1		; *4
-	bcs error
-	adc ztemp1		; add up low
-	tax			; keep low
-	tya			; restore hi
-	adc ztemp1+1		; gives *5
-	bcs error
-	sta ztemp1+1		; keep hi
-	txa			; restore low
-	asl a			; *2 -> *10
-	rol ztemp1+1		; ditto hi
-	bcs error
-	sta ztemp1		; keep low as well
-	jsr NextFr0Digit	; get the next digit
-	;; by construction, will return with C = 0
-	ldy ztemp1+1		; restore hi
+	lda fr0+1,x
+	and #$0f		;get the low digit
+	sta fr0
+	eor fr0+1,x		;get the high-nibble
+	lsr a			;/2
+	tay
+	adc fr0
+	sta fr0
+	tya
+	lsr a
+	lsr a			;/8
+	adc fr0
+	;; this should all create no carry. Once BCD digit is now in binary
+	;; add now to the stored remainder
 	adc ztemp1
-	bcc noinc
-	iny			; carry over
-	beq error		; if wrap-around, we have a problem
-noinc:	dec eexp		; next exponent value
-	bne loop		; lo is already loaded in A
-	tax			; delivery lo in X
-zero:	
-	clc			; worked!
-error:	
+	bcc nocarry
+	inc ztemp1+1
+	beq exit		;on overflow, C=1 is set
+nocarry:
+	inx			;next digit
+	cpx eexp		;until done
+	bcs done
+	stx fr0+5		;store the position again
+	;; A is now low, hi is in ztemp1+1
+	jsr MultiplyBy100	;*100
+	bcs exit
+	sta ztemp1
+	ldx fr0+5		;restore the index
+	bcc loop
+done:
+	clc
+exit:
 	rts
 .endproc
-;;; *** NegFr0
-;;; *** Compute -fr0 -> fr0
-.proc	NegFr0
-	lda fr0
-	eor #$80		; yes, really that easy.
-	sta fr0
-	rts
-.endproc	
 ;;; *** ZeroFr0 (also known as ZFR0)	must go to da44
 ;;; *** Clear the floating point register FR0
 	PlaceAt $da44
@@ -556,7 +584,7 @@ mulloop:
 	lda eexp		; fixup the final
 	sta fr0			; exponent	
 	jmp RoundExt
-	.endproc
+.endproc
 ;;; *** ZeroOK:	Clear FR0, indicate success
 .proc	ZeroOK
 	jsr ZeroFr0
@@ -573,8 +601,7 @@ mulloop:
 	PlaceAt $db28
 	.global BCDDiv
 .proc	BCDDiv
-	lda fr1			; must not be zero
-	and #$7f
+	jsr TestForZero
 	beq Error
 	jsr MultiplySigns	; prepare the exponent
 	sec
@@ -681,14 +708,38 @@ error:
 	sec
 	rts
 .endproc
+;;; *** FetchDigitY:	(db94)
+;;; *** Test whether a digit is in cix+(inbuff). If so, return it
+;;; *** otherwise, get the character itself and increment cix.
+.proc	FetchDigitY
+	jsr TestDigitY
+	bcc found
+	lda (inbuff),y
+found:
+	iny
+	rts
+.endproc
+;;; *** Times4
+;;; *** Multiply (A,ztemp1+1) with 4
+.proc	Times4
+	asl a
+	rol ztemp1+1
+	bcs error
+	asl a
+	rol ztemp1+1
+error:
+	rts
+.endproc
 ;;; *** NextFr2Digit:	(dbe7)
+	PlaceAt $dbe7
 .proc	NextFr2Digit
 	ldx #fr2+1
-	bne NextFr0Digit+2	; runs into the following
+	bne NextFr0Digit+2		; runs into the following
 .endproc
 ;;; *** NextFr0Digit:	(dbeb)
 ;;; *** Get the next digit from fr0, start with the highest digit
 ;;; *** and by that multiply the number by ten
+	PlaceAt $dbeb
 .proc	NextFr0Digit
 	ldx #fr0+1
 	ldy #4
@@ -704,17 +755,7 @@ loop:
 	bne loop
 	rts
 .endproc
-;;; *** FetchDigitY:	(db94)
-;;; *** Test whether a digit is in cix+(inbuff). If so, return it
-;;; *** otherwise, get the character itself and increment cix.
-.proc	FetchDigitY
-	jsr TestDigitY
-	bcc found
-	lda (inbuff),y
-found:
-	iny
-	rts
-.endproc	
+
 ;;; *** Normalize:	Must go to dc00
 ;;; *** Ensure that the first digit in the BCD number is non-zero, i.e. make the
 ;;; *** number normal. Returns with C=1 if that is not possible.
@@ -730,11 +771,12 @@ found:
 ;;; *** Normalize the number in fr0,fr0ext by moving the first two digits
 ;;; *** of fr0ext into fr0 into the result if necessary
 .proc	NormalizeExt
-	ldy #$4			; maximal number of moves
+	ldy #$5			; maximal number of moves
 	cld			; back to binary
 test:	
-	clc			; prepare result code (OK!)
 	lda fr0			; if now the exponent is zero
+	asl a			; without the sign
+	clc			; prepare result code (OK!)
 	beq exit		; if so, then the number is zero (or non-normalized)
 	lda fr0+1		; get first digit
 	bne isnormal		; seems to be normal, test the range
@@ -748,9 +790,7 @@ loop:	lda fr0+2,x
 	dec fr0			; adjust the exponent
 	dey			; maximal number of moves
 	bne test		; and try again
-	lda fr0+1		; still zero?
-	bne isnormal
-	sta fr0			; if so, mantissa is zero, set the number to zero
+	jsr ZeroFr0		; if still zero, set to zero
 isnormal:			; check for the exponent size
 	lda fr0			; get the exponent again
 	and #$7f		; without the sign
@@ -804,7 +844,7 @@ loop:
 	dex
 	dey
 	bne loop		; up to, but not including the exponent
-	lda #$0
+	tya			; clear A
 loop2:
 	sta fr1,x		; clear the rest
 	dex
@@ -815,12 +855,11 @@ exit:
 ;;; *** Fr0ExtShift		(dc5a)
 ;;; *** Downshift the fr0,fr0Ext register by two digits
 .proc	Fr0ExtShift
-	ldx #10			; #of digits
-loop:	lda fr0,x
-	sta fr0+1,x
+	ldx #10+1		; #of digits
+loop:	lda fr0-1,x
+	sta fr0,x
 	dex
-	bpl loop
-	inx
+	bne loop
 	stx fr0
 	rts
 .endproc
@@ -922,7 +961,7 @@ cploop:	lda fr1,x
 	sta fr0ext,x
 	dex
 	bpl cploop
-	jsr NextFr2Digit	; upshift for enhanced precision
+	jsr NextFr2Digit	; fr2 = fr1 * 10, fr0ext = fr0
 	sta fr2			; keep in exponent buffered
 	sed			; also already required
 	jmp ZeroFr0		; and clear result register
@@ -1009,7 +1048,7 @@ exit:
 .proc	LoadFr0IndXY
 	stx flptr
 	sty flptr+1
-	.endproc
+.endproc
 	;; runs into the following
 ;;; *** LoadFr0IndPtr	Must go to dd8d
 ;;; *** Load fr0 from the data pointed to by flptr
@@ -1051,7 +1090,7 @@ loop:	lda (flptr),y
 .proc	StoreFr0IndXY
 	stx flptr
 	sty flptr+1
-	.endproc
+.endproc
 	;; runs into the following
 ;;; *** StoreFr0IndPtr	Must go to ddab
 ;;; *** store fr0 in the data pinted to by flptr
@@ -1110,9 +1149,10 @@ loop:	lda fr0,x
 	jsr Fr0ToFr1		; keep as temporary
 	jsr BCDToIntDown	; get integer part of |x|. Must round down, would ruin numerics
 	bcs huge		; did not fit into an int
-	stx digrt		; store low digit
-	tya			; and high
+	sta digrt		; store low digit
+	ldy ztemp1+1		; and high
 	bne huge		; too large, either 0 or error
+	tax
 	jsr IntXYToBCD		; back to a floating point
 	jsr NegFr0		; make this negative
 	jsr BCDAdd		; and keep only the fractional part of it.
@@ -1174,6 +1214,32 @@ ExpPoly:
 	.byte $3f,$10,$00,$00,$00,$00
 One:	
 	.byte $40,$01,$00,$00,$00,$00
+
+;;; *** MultiplyBy100
+;;; *** Multiply the contents of (A,ztemp1+1)
+;;; *** by 100
+.proc	MultiplyBy100
+	jsr Times4
+	bcs error
+	;; (A,ztemp1+1) contains now input*4
+	;; now multiply by 25
+	jsr Times5
+	bcs error
+Times5:	
+	;; multiply a,ztemp1+1 with 5
+	sta ztemp1		;keep low
+	ldy ztemp1+1		;keep hi
+	jsr Times4
+	bcs error
+	adc ztemp1
+	tax			;store lo
+	tya			;restore hi
+	adc ztemp1+1
+	sta ztemp1+1
+	txa			;restore lo.
+error:
+	rts
+.endproc
 ;;; *** BCDFract	Must go to de95
 ;;; *** compute the rational function (fr0-A)/(fr0+A)
 ;;; *** where A is pointed to by (X,Y) 
@@ -1347,7 +1413,7 @@ AtnPoly:
 	PlaceAt $dfea
 	.global	NearOne
 NearOne:	
-	.byte $3f,$99,$99,$99,$99,$99 ; also required for ATN
+	.byte $40,$01,$00,$00,$00,$00 ; also required for ATN
 	PlaceAt $dff0
 	.global PiOver4
 PiOver4:

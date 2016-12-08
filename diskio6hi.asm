@@ -2,7 +2,7 @@
 ;;; ** THOR Os                                                          **
 ;;; ** A free operating system for the Atari 8 Bit series               **
 ;;; ** (c) 2003 THOR Software, Thomas Richter                           **
-;;; ** $Id: diskio6hi.asm,v 1.10 2013/06/02 20:41:04 thor Exp $          **
+;;; ** $Id: diskio6hi.asm,v 1.11 2015/11/08 15:26:39 thor Exp $          **
 ;;; **                                                                  **
 ;;; ** In this module:   DiskIO Resident Part - High memory area	**
 ;;; **********************************************************************
@@ -237,7 +237,7 @@ restio:
 	sta ZIOCB
 	sta ZLen+1
 exit:
-	ldx #-ZPageLen
+	ldx #-ZPageLen+256
 restore:
 	pla
 	sta ZPage+ZPageLen,x
@@ -1053,7 +1053,7 @@ short:
 	jsr ReadScreen
 	lda #'.'
 	jsr InsertChar
-	lda #-8
+	lda #-8+256
 	jsr DecrementCmdPtr
 	ldy #8-1
 	jsr ReadScreen
@@ -1277,7 +1277,7 @@ cmploop:			;note that the file name starts at offset 1
 smaller:
 	ldy #40			;move buffer0 into free screen position
 	jsr CopyBuffer0ToScreen
-	lda #-40		;and move upwards by one
+	lda #-40+256		;and move upwards by one
 	jsr DecrementCmdPtr
 	dec SortIndex		;until no free slots there
 	bne scanloop

@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: screen.asm,v 1.32 2014/01/19 11:31:43 thor Exp $		**
+;;; ** $Id: screen.asm,v 1.35 2016/12/07 21:26:44 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 Implementation of the S: handler		**
 ;;; **********************************************************************
@@ -137,6 +137,7 @@ havewindow:
 	sta WindowHeight
 	lda #0
 	sta SwapFlag		; text data not swapped
+	sta WindowGfxMode
 	jsr SwapGfxWindowCursor	; swap editor variables in
 	jsr EditorScreenInit	; initialize the editor variables
 	jsr SwapGfxWindowCursor	; swap them into the private editor backup
@@ -185,7 +186,9 @@ nodli:
 	ldx ModeLinesWindow,y	; get the number of mode lines in the window
 	bne insertmodes		; jump to the mode writer
 nowindow:
+	jsr ResetCursorPtr	; ensure that the next open does not clear the cursor
 	ldy GfxMode
+	sty WindowGfxMode
 	ldx ModeLines,y		; get the mode line again
 	tya			; fine scrolling only for mode #0
 	bne insertmodes
@@ -786,10 +789,10 @@ shiftdone:
 	stx ScreenStack		; keep stack position
 	ldx #$00		; fill flag
 	lda ZCmd		; check which command we have here.
-	cmp #$11		; draw line?
+	cmp #CmdDrawTo		; draw line?
 	beq godrawer
 	inx			; possibly the filler?
-	cmp #$12
+	cmp #CmdFillTo
 	beq godrawer		; this is the drawer
 	ldy #InvalidCmd		; an error: This command does not exist
 	rts

@@ -3,7 +3,7 @@
 ** Create a DUP 2.++ compatible menu entry file from
 ** two binary sources assembled to $700 and $800.
 **
-** $Id: createmenu.c,v 1.1 2013-04-13 15:06:22 thor Exp $
+** $Id: createmenu.c,v 1.1 2013/04/13 15:06:22 thor Exp $
 */
 
 #include <stdio.h>

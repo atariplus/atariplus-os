@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: mathpack.i,v 1.4 2014/01/01 18:22:16 thor Exp $			**
+;;; ** $Id: mathpack.i,v 1.6 2015/08/23 14:05:42 thor Exp $			**
 ;;; **									**
 ;;; ** In this module:	 math pack functions				**
 ;;; **********************************************************************
@@ -42,10 +42,11 @@ LoadOutbuffVector	=	$da51 ; set inbuff to outbuff
 TimesTwoVector		=	$da5a ; ztemp4*2 -> ztemp4
 BCDSubVector		=	$da60 ; fr0-fr1	-> fr0
 BCDAddVector		=	$da66 ; fr0+fr1	-> fr0
-BDDMulVector		=	$dadb ; fr0*fr1	-> fr0
+BCDMulVector		=	$dadb ; fr0*fr1	-> fr0
 BCDDivVector		=	$db28 ; fr0/fr1	-> fr0	or set C
 SkipBlanksVector	=	$dba1 ; skip blanks pointed to by CIX+(INBUFF)
 TestDigitVector		=	$dbaf ; test whether a digit in CIX+(INBUFF) is valid, return in A, otherwise C=1
+Fr0TimesTenVector	=	$dbeb ; multiply fr0 with ten
 NormalizeVector		=	$dc00 ; normalize the bcd number in fr0
 EvalPolyVector		=	$dd40 ; evaluate the polynomial at (x,y), #a with the argument in fr0
 LoadFr0IndXYVector	=	$dd89 ; load fr0 from (x,y)

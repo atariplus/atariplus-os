@@ -2,7 +2,7 @@
 ;;; ** THOR Os								**
 ;;; ** A free operating system for the Atari 8 Bit series		**
 ;;; ** (c) 2003 THOR Software, Thomas Richter				**
-;;; ** $Id: editor.asm,v 1.30 2016/12/07 21:26:44 thor Exp $		**
+;;; ** $Id: editor.asm,v 1.32 2020/04/11 14:07:52 thor Exp $		**
 ;;; **									**
 ;;; ** In this module:	 Implementation of the E: handler		**
 ;;; **********************************************************************
@@ -743,7 +743,7 @@ nowindow:
 	ldy #0
 	lda ChrUnderCursor	; get the old character under the cursor
 	sta (CursorPtr),y	; store it
-	Skip2
+	Skip1
 nocursor:
 	rts
 .endproc

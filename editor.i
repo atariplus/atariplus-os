@@ -49,6 +49,7 @@ CursorInhibit		=	$2f0	; cursor visibility flag (=0: visible)
 	.global EditorInit		; CIO E: init vector
 
 	.global CheckCtrlCode		; check whether a given ATASCII code is a ctrl code. Returns eq if so
+	.global EditorScreenOpen	; main part of EditorOpen for ScreenOpen
 	.global	EditorScreenInit	; initializes screen specific editor variables
 	.global SwapGfxWindowCursor
 	.global BitMasks		; bitmask containing the powers of two

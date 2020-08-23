@@ -26,9 +26,9 @@
 	lda ZAux2		; check the graphics mode
 	and #$0f		; if it is graphics 0, permit no text window
 	bne nottext
-	jmp EditorOpen		; special hack to leave this to the editor then
+	jmp EditorScreenOpen		; special hack to leave this to the editor then
 nottext:
-	sta GfxMode		; use a graphics 0 screen
+;	sta GfxMode		; use a graphics 0 screen
 	;; runs into OpenScreen
 .endproc
 ;;; *** OpenScreen

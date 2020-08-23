@@ -29,6 +29,16 @@
 ;;; *** This is the open vector of the editor device
 	.global EditorOpen
 .proc	EditorOpen
+	lda #$00
+	sta CursorInhibit       ; make the cursor visible
+	jsr ResetCursorPtr	; indicate that there is no cursor to remove currently
+	jsr CursorHome		; reset the cursor position
+	jsr RenderCursor	; display the cursor
+.endproc
+	;; runs into the following
+;;; *** This is shared between editor open and screen open
+	.global EditorScreenOpen
+.proc	EditorScreenOpen
 	lda ZAux1	 	; mask out the graphics mode
 	and #$0f		; which we don't need
 	sta ZAux1
@@ -41,13 +51,13 @@
 	sta WindowHeight	
 	lda #0
 	sta SwapFlag		; text data not swapped
-	jsr ResetCursorPtr	; indicate that there is no cursor to remove currently
 	jsr EditorScreenInit	; initalize editor variables
-	jsr RenderCursor	; display the cursor
 	ldy #$01
+
 error:
 	rts
 .endproc
+
 ;;; *** EditorScreenInit
 ;;; *** Initialize the internals of the editor.
 ;;; *** To be called either from editor open, or from
@@ -56,8 +66,8 @@ error:
 .proc	EditorScreenInit
 	lda #$00
 	sta GfxMode		; set the gfx mode for the text window
-	sta CursorInhibit	; make the cursor visible	
 	sta BufferCnt		; indicate that the buffer is empty
+
 	
 	ldy #TabStopsSize-1
 	lda #$01		; now reset all TAB stops: Every eight's stop
@@ -71,7 +81,7 @@ tabinit:
 	sta LeftMargin		; initialize the left margin
 	lda #39
 	sta RightMargin		; initialize the right margin	
-	jmp CursorHome		; reset the cursor position
+	rts
 .endproc
 ;;; *** EditorClose
 ;;; *** This is the close vector for the E: handler

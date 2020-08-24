@@ -121,9 +121,6 @@ scanloop:
 	bne nextcmd
 	lda CmdChar2,x
 	cmp DupBuffer+1,y
-	bne nextcmd
-	lda CmdChar3,x
-	cmp DupBuffer+2,y
 	beq foundcmd
 nextcmd:
 	dex
@@ -924,7 +921,7 @@ LF:		.byte $9b
 ;;; *** FindEndOfOption
 ;;; *** Advance the buffer to the end of the comma-separated option
 .proc	FindEndOfOption
-	lda #','
+	lda #' '
 	Skip2
 	;; runs into the following
 .endproc
@@ -954,7 +951,7 @@ exit:
 ;;; *** SkipComma
 ;;; *** Skip the comma
 .proc	SkipComma
-	lda #','
+	lda #' '
 	Skip2
 	;; runs into/over the following
 .endproc
@@ -1049,18 +1046,20 @@ DirInit:	.byte "D1:"	; initializer for the device directory
 DirInitL	=	*-DirInit
 Title:		.byte $7d
 		.byte "Thor Dos 2.++ V 1.8 Enhanced Density",$9b
-		.byte "Copyright (c) 1990-2014 by THOR",$9b
+		.byte "Copyright (c) 1990-2014 by THoR",$9b
 TitleL		=	*-Title
 
 	;;; Commands sorted by character position for easy comparison
-CmdChar1:	.byte "DDRPUCICRSCLN"
-CmdChar2:	.byte "IEERNANLUAOOE"
-CmdChar3:	.byte "RLNOPRIRNVPAW"
-NumCommands	=	*-CmdChar3
+CmdChar1:	.byte "DDRPUCICRSCLNLRMC"
+CmdChar2:	.byte "IEERNANLUAOOESMVP"
+;; CmdChar3:	.byte "RLNOPRIRNVPAW"
+NumCommands	=	*-CmdChar2
 ;;; command targets/jump addresses
 CmdHi:		.byte >(CmdDir-1),>(CmdDel-1),>(CmdRen-1),>(CmdLoc-1),>(CmdUnl-1),>(CmdCar-1)
 		.byte >(CmdFor-1),>(CmdCle-1),>(CmdRun-1),>(CmdSav-1),>(CmdCop-1),>(CmdLoa-1)
 		.byte >(CmdNew-1)
+		.byte >(CmdDir-1),>(CmdDel-1),>(CmdRen-1),>(CmdCop-1)
 CmdLo:		.byte <(CmdDir-1),<(CmdDel-1),<(CmdRen-1),<(CmdLoc-1),<(CmdUnl-1),<(CmdCar-1)
 		.byte <(CmdFor-1),<(CmdCle-1),<(CmdRun-1),<(CmdSav-1),<(CmdCop-1),<(CmdLoa-1)
 		.byte <(CmdNew-1)
+		.byte <(CmdDir-1),<(CmdDel-1),<(CmdRen-1),<(CmdCop-1)

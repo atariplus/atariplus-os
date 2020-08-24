@@ -715,7 +715,7 @@ clrl:
 nextchr:
 	iny			; advance to the next
 	lda (ZAdr),y		; get the next component
-	cmp #','
+	cmp #' '
 	beq endname
 	cmp #'/'
 	beq endname

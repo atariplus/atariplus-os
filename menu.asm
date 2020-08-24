@@ -874,7 +874,7 @@ getloop:
 	lda InputBuffer,x
 	cmp #$9b
 	beq end
-	cmp #','
+	cmp #' '
 	beq end
 	sta (ZPtr),y
 	iny

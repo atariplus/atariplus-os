@@ -128,6 +128,7 @@ scanloop:
 nextcmd:
 	dex
 	bpl scanloop
+
 	;; The command is unknown. Signal this condition
 	lda DupError
 	jmp ReportError		; signal the error
@@ -1052,9 +1053,9 @@ Title:		.byte $7d
 TitleL		=	*-Title
 
 	;;; Commands sorted by character position for easy comparison
-CmdChar1:	.byte "DDRLUCFCRSCLN"
-CmdChar2:	.byte "IEEONAOLUAOOE"
-CmdChar3:	.byte "RLNCLRRENVPAW"
+CmdChar1:	.byte "DDRPUCICRSCLN"
+CmdChar2:	.byte "IEERNANLUAOOE"
+CmdChar3:	.byte "RLNOPRIRNVPAW"
 NumCommands	=	*-CmdChar3
 ;;; command targets/jump addresses
 CmdHi:		.byte >(CmdDir-1),>(CmdDel-1),>(CmdRen-1),>(CmdLoc-1),>(CmdUnl-1),>(CmdCar-1)
